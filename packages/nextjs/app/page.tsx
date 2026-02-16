@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { decodeEventLog, formatEther, parseAbiItem } from "viem";
@@ -9,7 +10,6 @@ import { useAccount, usePublicClient } from "wagmi";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
-import Image from "next/image";
 
 // Placeholder game image
 const GAME_IMAGE =
@@ -387,11 +387,12 @@ const Home: NextPage = () => {
         <div className="flex justify-center mb-8">
           <div className="card bg-base-100 shadow-xl max-w-sm">
             <figure className="px-10 pt-10">
-              <image 
+              <Image
                 src={GAME_IMAGE}
-                alt="Game" width={400}
+                alt="Game"
+                width={400}
                 height={192}
-                className="rounded-xl h-48 w-full object-cover" 
+                className="rounded-xl h-48 w-full object-cover"
                 unoptimized
               />
             </figure>

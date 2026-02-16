@@ -53,13 +53,13 @@
     "husky": "~9.1.6",
     "lint-staged": "~13.2.2"
   },
-  "packageManager": "yarn@3.2.3",
+  "packageManager": "yarn@1.22.22",
   "engines": {
     "node": ">=20.18.3"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@vercel/postgres": "^0.10.0",
-    "vercel": "latest"
+    "crypto-ts": "^1.0.2"
   }
 }

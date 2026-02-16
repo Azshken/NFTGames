@@ -1,5 +1,5 @@
 // packages/nextjs/utils/db.ts
-import { sql } from '@vercel/postgres';
+import { sql } from "@vercel/postgres";
 
 export interface CDKey {
   id: number;
@@ -21,7 +21,7 @@ export async function getAvailableCDKey(): Promise<CDKey | null> {
     LIMIT 1
     FOR UPDATE SKIP LOCKED
   `;
-  
+
   return result.rows[0] as CDKey | null;
 }
 
@@ -40,16 +40,11 @@ export async function getCDKeyByTokenId(tokenId: bigint): Promise<CDKey | null> 
     WHERE token_id = ${tokenId.toString()}
       AND is_redeemed = FALSE
   `;
-  
+
   return result.rows[0] as CDKey | null;
 }
 
-export async function markCDKeyRedeemed(
-  cdkeyId: number,
-  userAddress: string,
-  txHash: string,
-  ipAddress?: string
-) {
+export async function markCDKeyRedeemed(cdkeyId: number, userAddress: string, txHash: string, ipAddress?: string) {
   // Update CDKey
   await sql`
     UPDATE cdkeys
@@ -60,7 +55,7 @@ export async function markCDKeyRedeemed(
       encrypted_cdkey = NULL
     WHERE id = ${cdkeyId}
   `;
-  
+
   // Log redemption
   await sql`
     INSERT INTO redemption_history (

@@ -32,7 +32,7 @@ contract DeployYourContract is Script {
         
         // Only use localhost private key for local chains
         if (block.chainid == 31337) { // localhost/Anvil chain ID
-            deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY_LOCALHOST");
+            deployerPrivateKey = vm.envUint("NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID");
             vm.startBroadcast(deployerPrivateKey);
             
             // Deploy mock tokens on localhost
