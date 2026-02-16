@@ -4,9 +4,13 @@ import { linkCDKeyToToken } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const { cdkeyId, tokenId } = await req.json();
+    const { cdkeyId, tokenId, walletAddress } = await req.json();
 
-    await linkCDKeyToToken(cdkeyId, BigInt(tokenId));
+    if (!cdkeyId || !tokenId || !walletAddress) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    await linkCDKeyToToken(cdkeyId, BigInt(tokenId), walletAddress);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

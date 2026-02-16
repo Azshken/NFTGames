@@ -5,7 +5,12 @@ import { encrypt, generateCDKey, hashCDKey } from "~~/utils/crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const { quantity = 10 } = await req.json();
+    const { adminSecret, quantity = 10 } = await req.json();
+
+    // Verify admin access
+    if (adminSecret !== process.env.ADMIN_SECRET) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const keys = [];
 
@@ -15,11 +20,12 @@ export async function POST(req: NextRequest) {
       const encryptedCDKey = encrypt(cdkey);
 
       await sql`
-        INSERT INTO cdkeys (encrypted_cdkey, commitment_hash)
-        VALUES (${encryptedCDKey}, ${commitmentHash})
+        INSERT INTO cdkeys (encrypted_cdkey, commitment_hash, is_redeemed)
+        VALUES (${encryptedCDKey}, ${commitmentHash}, FALSE)
       `;
 
-      keys.push({ cdkey, commitmentHash });
+      // Only return commitment hash (no plain key!)
+      keys.push({ commitmentHash });
     }
 
     return NextResponse.json({

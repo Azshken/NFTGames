@@ -1,13 +1,19 @@
 // packages/nextjs/app/api/mint/get-commitment/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAvailableCDKey } from "~~/utils/db";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const { walletAddress } = await req.json();
+
+    if (!walletAddress) {
+      return NextResponse.json({ error: "Wallet address required" }, { status: 400 });
+    }
+
     const cdkey = await getAvailableCDKey();
 
     if (!cdkey) {
-      return NextResponse.json({ error: "No CDKeys available" }, { status: 404 });
+      return NextResponse.json({ error: "No CD keys available" }, { status: 404 });
     }
 
     return NextResponse.json({

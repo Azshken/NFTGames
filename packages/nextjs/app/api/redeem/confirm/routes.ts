@@ -5,6 +5,11 @@ import { markCDKeyRedeemed } from "~~/utils/db";
 export async function POST(req: NextRequest) {
   try {
     const { cdkeyId, userAddress, txHash } = await req.json();
+
+    if (!cdkeyId || !userAddress || !txHash) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
     const ipAddress = req.headers.get("x-forwarded-for") || undefined;
 
     await markCDKeyRedeemed(cdkeyId, userAddress, txHash, ipAddress);

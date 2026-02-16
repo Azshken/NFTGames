@@ -6,8 +6,10 @@ export interface CDKey {
   encrypted_cdkey: string;
   commitment_hash: string;
   token_id: bigint | null;
+  wallet_address: string | null;
   is_redeemed: boolean;
   redeemed_by: string | null;
+  user_encrypted_key: string | null;
   created_at: Date;
 }
 
@@ -25,10 +27,13 @@ export async function getAvailableCDKey(): Promise<CDKey | null> {
   return result.rows[0] as CDKey | null;
 }
 
-export async function linkCDKeyToToken(cdkeyId: number, tokenId: bigint) {
+export async function linkCDKeyToToken(cdkeyId: number, tokenId: bigint, walletAddress: string) {
   await sql`
     UPDATE cdkeys
-    SET token_id = ${tokenId.toString()}, updated_at = NOW()
+    SET 
+      token_id = ${tokenId.toString()},
+      wallet_address = ${walletAddress},
+      updated_at = NOW()
     WHERE id = ${cdkeyId}
   `;
 }
@@ -38,14 +43,23 @@ export async function getCDKeyByTokenId(tokenId: bigint): Promise<CDKey | null> 
     SELECT *
     FROM cdkeys
     WHERE token_id = ${tokenId.toString()}
-      AND is_redeemed = FALSE
   `;
 
   return result.rows[0] as CDKey | null;
 }
 
+export async function storeUserEncryptedKey(cdkeyId: number, userEncryptedKey: string) {
+  await sql`
+    UPDATE cdkeys
+    SET 
+      user_encrypted_key = ${userEncryptedKey},
+      updated_at = NOW()
+    WHERE id = ${cdkeyId}
+  `;
+}
+
 export async function markCDKeyRedeemed(cdkeyId: number, userAddress: string, txHash: string, ipAddress?: string) {
-  // Update CDKey
+  // Update CDKey - Keep user_encrypted_key, delete original encrypted_cdkey
   await sql`
     UPDATE cdkeys
     SET 
