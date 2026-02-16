@@ -1,4 +1,5 @@
 // packages/nextjs/utils/crypto.ts
+import { encrypt as ethEncrypt } from "@metamask/eth-sig-util";
 import crypto from "crypto";
 
 const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex"), "hex");
@@ -30,15 +31,22 @@ export function decrypt(encryptedData: string): string {
 }
 
 export function encryptWithPublicKey(data: string, publicKey: string): string {
-  // Using MetaMask's encryption standard
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { encrypt } = require("@metamask/eth-sig-util");
+  // Using MetaMask's encryption standard for Ethereum public keys
 
-  const encrypted = encrypt({
-    publicKey,
-    data,
+  // Encrypt using x25519-xsalsa20-poly1305 (MetaMask's encryption standard)
+  const encrypted = ethEncrypt({
+    publicKey: publicKey, // MetaMask encryption public key (not the wallet address)
+    data: data,
     version: "x25519-xsalsa20-poly1305",
   });
 
-  return Buffer.from(JSON.stringify(encrypted)).toString("hex");
+  // Convert to hex string for easy transmission
+  return Buffer.from(JSON.stringify(encrypted), "utf8").toString("hex");
+}
+
+// Decrypt function (user decrypts with MetaMask on client-side)
+export function prepareForMetaMaskDecrypt(encryptedHex: string): string {
+  // This just formats the encrypted data for MetaMask's eth_decrypt
+  // Actual decryption happens client-side via MetaMask
+  return encryptedHex;
 }

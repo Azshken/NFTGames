@@ -7,6 +7,7 @@ import type { NextPage } from "next";
 import { decodeEventLog, formatEther, parseAbiItem } from "viem";
 import { hardhat } from "viem/chains";
 import { useAccount, usePublicClient } from "wagmi";
+import { CDKeyEncryption } from "~~/components/CDKeyEncryption";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
@@ -439,6 +440,11 @@ const Home: NextPage = () => {
           >
             {loading ? mintingStep || "Processing..." : `Mint NFT with ${selectedPayment}`}
           </button>
+        </div>
+
+        <div className="flex items-center flex-col flex-grow pt-10">
+          <CDKeyEncryption />
+          {/* Your other content */}
         </div>
 
         {/* CD Key Management Section */}
