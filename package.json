@@ -2,11 +2,9 @@
   "name": "se-2",
   "version": "0.0.1",
   "private": true,
-  "workspaces": {
-    "packages": [
+  "workspaces": [
       "packages/*"
-    ]
-  },
+  ],
   "scripts": {
     "account": "yarn foundry:account",
     "account:generate": "yarn foundry:generate",
@@ -53,7 +51,7 @@
     "husky": "~9.1.6",
     "lint-staged": "~13.2.2"
   },
-  "packageManager": "yarn@1.22.22",
+  "packageManager": "yarn@3.2.3",
   "engines": {
     "node": ">=20.18.3"
   },
