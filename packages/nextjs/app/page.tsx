@@ -1,3 +1,4 @@
+// packages/nextjs/app/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,12 +8,34 @@ import type { NextPage } from "next";
 import { decodeEventLog, formatEther, parseAbiItem } from "viem";
 import { hardhat } from "viem/chains";
 import { useAccount, usePublicClient } from "wagmi";
-import { CDKeyEncryption } from "~~/components/CDKeyEncryption";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
-// Placeholder game image
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
+// packages/nextjs/app/page.tsx
+
 const GAME_IMAGE =
   "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/bafybeiaiedjkix3n3qx6il3lwj2ye7y5fkbaytu7m4q6yxlde5uqrsgztm";
 
@@ -21,7 +44,6 @@ const Home: NextPage = () => {
   const { targetNetwork } = useTargetNetwork();
   const publicClient = usePublicClient();
 
-  // State management
   const [selectedPayment, setSelectedPayment] = useState<"ETH" | "USDT" | "USDC">("ETH");
   const [selectedTokenId, setSelectedTokenId] = useState<number>(0);
   const [ownedTokens, setOwnedTokens] = useState<number[]>([]);
@@ -29,7 +51,8 @@ const Home: NextPage = () => {
   const [loading, setLoading] = useState(false);
   const [mintingStep, setMintingStep] = useState<string>("");
 
-  // Read contract data
+  // ============ Contract Reads ============
+
   const { data: mintPriceETH } = useScaffoldReadContract({
     contractName: "SoulboundNFT",
     functionName: "mintPriceETH",
@@ -50,29 +73,28 @@ const Home: NextPage = () => {
     functionName: "maxSupply",
   });
 
-  const { data: isClaimed } = useScaffoldReadContract({
+  const { data: isClaimed, refetch: refetchIsClaimed } = useScaffoldReadContract({
     contractName: "SoulboundNFT",
     functionName: "isClaimedToken",
-    args: [BigInt(selectedTokenId || 0)], // Always provide args
+    args: [BigInt(selectedTokenId || 0)],
     query: {
-      enabled: selectedTokenId > 0, // Only execute when we have a valid token
+      enabled: selectedTokenId > 0,
     },
   });
 
-  // Write functions
+  // ============ Contract Writes ============
+
   const { writeContractAsync: writeContract } = useScaffoldWriteContract({
     contractName: "SoulboundNFT",
   });
 
-  // Fetch owned tokens on load
+  // ============ Fetch Owned Tokens ============
+
   useEffect(() => {
     const fetchOwnedTokens = async () => {
       if (!connectedAddress || !publicClient || !totalSupply) return;
 
       try {
-        const tokens: number[] = [];
-
-        // Get Transfer events to find user's tokens
         const logs = await publicClient.getLogs({
           address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
           event: parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"),
@@ -80,7 +102,8 @@ const Home: NextPage = () => {
           toBlock: "latest",
         });
 
-        // Filter for transfers to the user
+        const tokens: number[] = [];
+
         for (const log of logs) {
           if (log.args?.to?.toLowerCase() === connectedAddress.toLowerCase()) {
             const tokenId = log.args?.tokenId;
@@ -100,7 +123,8 @@ const Home: NextPage = () => {
     fetchOwnedTokens();
   }, [connectedAddress, totalSupply, publicClient]);
 
-  // Handle mint (without immediate claim)
+  // ============ Mint ============
+
   const handleMint = async () => {
     if (!connectedAddress) {
       notification.error("Please connect your wallet");
@@ -111,9 +135,11 @@ const Home: NextPage = () => {
     setMintingStep("Getting commitment hash from database...");
 
     try {
-      // Step 1: Get commitment hash from backend
+      // Step 1: Get commitment hash + Merkle proof from backend
       const commitmentRes = await fetch("/api/mint/get-commitment", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: connectedAddress }),
       });
 
       const commitmentData = await commitmentRes.json();
@@ -122,87 +148,86 @@ const Home: NextPage = () => {
         throw new Error(commitmentData.error || "Failed to get commitment hash");
       }
 
-      // setCdkeyId(commitmentData.cdkeyId);
+      // Format commitment hash as bytes32
+      const commitmentHashBytes32 = (
+        commitmentData.commitmentHash.startsWith("0x")
+          ? commitmentData.commitmentHash
+          : `0x${commitmentData.commitmentHash}`
+      ) as `0x${string}`;
+
+      // Merkle proof array from backend
+      const merkleProof = commitmentData.merkleProof as `0x${string}`[];
+
       setMintingStep(`Minting NFT with ${selectedPayment}...`);
 
-      // Step 2: Mint NFT with commitment hash
+      // Step 2: Mint on-chain with commitment hash + proof
       let txHash;
-      // const commitmentHashBytes = commitmentData.commitmentHash.startsWith("0x")
-      //   ? commitmentData.commitmentHash
-      //   : `0x${commitmentData.commitmentHash}`;
 
       if (selectedPayment === "ETH") {
         txHash = await writeContract({
           functionName: "mintWithETH",
-          // args: [commitmentHashBytes as `0x${string}`],
+          args: [commitmentHashBytes32, merkleProof],
           value: mintPriceETH,
         });
       } else if (selectedPayment === "USDT") {
         txHash = await writeContract({
           functionName: "mintWithUSDT",
-          // args: [commitmentHashBytes],
+          args: [commitmentHashBytes32, merkleProof],
         });
       } else {
         txHash = await writeContract({
           functionName: "mintWithUSDC",
-          // args: [commitmentHashBytes],
+          args: [commitmentHashBytes32, merkleProof],
         });
       }
 
       setMintingStep("Waiting for transaction confirmation...");
 
-      // Step 3: Wait for transaction and get token ID
       const receipt = await publicClient?.waitForTransactionReceipt({
         hash: txHash as `0x${string}`,
       });
 
-      if (!receipt) {
-        throw new Error("Transaction receipt not found");
-      }
+      if (!receipt) throw new Error("Transaction receipt not found");
 
-      // Parse Transfer event to get tokenId
+      // Step 3: Extract tokenId from Transfer event
       let tokenId: bigint | undefined;
 
       for (const log of receipt.logs) {
         try {
-          // Try to decode as Transfer event
           const decoded = decodeEventLog({
             abi: [parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)")],
             data: log.data,
             topics: log.topics,
           });
 
-          // If from is zero address, it's a mint
           if (decoded.args.from === "0x0000000000000000000000000000000000000000") {
             tokenId = decoded.args.tokenId;
             break;
           }
         } catch {
-          // Not a Transfer event, skip
           continue;
         }
       }
 
-      if (!tokenId) {
-        throw new Error("Could not extract token ID from transaction");
-      }
+      if (!tokenId) throw new Error("Could not extract token ID from transaction");
 
       setMintingStep("Linking token to database...");
 
-      // Step 4: Link token ID in database
+      // Step 4: Link token ID to CD key in database
       await fetch("/api/mint/link-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cdkeyId: commitmentData.cdkeyId,
           tokenId: tokenId.toString(),
+          walletAddress: connectedAddress,
         }),
       });
 
       setSelectedTokenId(Number(tokenId));
       setOwnedTokens(prev => [...prev, Number(tokenId)]);
 
-      notification.success(`NFT minted successfully! Token ID: ${tokenId}`);
+      notification.success(`NFT minted! Token #${tokenId} — now claim your CD key.`);
       setMintingStep("");
     } catch (error: any) {
       console.error("Mint error:", error);
@@ -213,7 +238,8 @@ const Home: NextPage = () => {
     }
   };
 
-  // Handle claim CD key
+  // ============ Claim CD Key ============
+
   const handleClaimCDKey = async () => {
     if (!connectedAddress || !selectedTokenId) {
       notification.error("Please select a token");
@@ -226,25 +252,25 @@ const Home: NextPage = () => {
     }
 
     setLoading(true);
-    setMintingStep("Requesting encryption public key...");
+    setMintingStep("Requesting encryption public key from MetaMask...");
 
     try {
-      // Step 1: Get user's public key from MetaMask
-      const publicKey = await (window as any).ethereum.request({
+      // Step 1: Get user's MetaMask encryption public key
+      const userPublicKey = await (window as any).ethereum.request({
         method: "eth_getEncryptionPublicKey",
         params: [connectedAddress],
       });
 
-      setMintingStep("Retrieving CD key from database...");
+      setMintingStep("Retrieving and encrypting CD key...");
 
-      // Step 2: Get encrypted CD key from backend
+      // Step 2: Backend decrypts with server key, re-encrypts with user's MetaMask key
       const redeemRes = await fetch("/api/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tokenId: selectedTokenId,
           userAddress: connectedAddress,
-          userPublicKey: publicKey,
+          userPublicKey,
         }),
       });
 
@@ -256,24 +282,27 @@ const Home: NextPage = () => {
 
       setMintingStep("Claiming CD key on blockchain...");
 
-      // Step 3: Submit to smart contract
-      const commitmentHashBytes = redeemData.commitmentHash.startsWith("0x")
-        ? redeemData.commitmentHash
-        : `0x${redeemData.commitmentHash}`;
+      // Step 3: Format commitment hash as bytes32 for contract
+      const commitmentHashBytes32 = (
+        redeemData.commitmentHash.startsWith("0x") ? redeemData.commitmentHash : `0x${redeemData.commitmentHash}`
+      ) as `0x${string}`;
 
-      const encryptedKeyBytes = redeemData.encryptedCDKey.startsWith("0x")
-        ? redeemData.encryptedCDKey
-        : `0x${redeemData.encryptedCDKey}`;
+      // Step 4: Format encrypted CD key as bytes for contract
+      const encryptedKeyBytes = (
+        redeemData.encryptedCDKey.startsWith("0x") ? redeemData.encryptedCDKey : `0x${redeemData.encryptedCDKey}`
+      ) as `0x${string}`;
 
+      // Step 5: Submit to contract — makes NFT soulbound
       const txHash = await writeContract({
         functionName: "claimCdKey",
-        args: [BigInt(selectedTokenId), commitmentHashBytes as `0x${string}`, encryptedKeyBytes as `0x${string}`],
+        args: [BigInt(selectedTokenId), commitmentHashBytes32, encryptedKeyBytes],
       });
+
       setMintingStep("Confirming redemption...");
 
       await publicClient?.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
 
-      // Step 4: Confirm in database (cleanup)
+      // Step 6: Confirm in database — deletes server-side encrypted key
       await fetch("/api/redeem/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,7 +313,9 @@ const Home: NextPage = () => {
         }),
       });
 
-      notification.success("CD key claimed successfully! Click 'Reveal CD Key' to decrypt it.");
+      await refetchIsClaimed();
+
+      notification.success("CD key claimed! NFT is now soulbound. Click 'Reveal CD Key' to decrypt.");
       setMintingStep("");
     } catch (error: any) {
       console.error("Claim error:", error);
@@ -295,7 +326,8 @@ const Home: NextPage = () => {
     }
   };
 
-  // Handle reveal CD key
+  // ============ Reveal CD Key ============
+
   const handleRevealCDKey = async () => {
     if (!connectedAddress || !selectedTokenId) {
       notification.error("Please select a token");
@@ -311,8 +343,9 @@ const Home: NextPage = () => {
     setMintingStep("Retrieving encrypted CD key from blockchain...");
 
     try {
-      // Step 1: Read encrypted CD key from contract
-      const encryptedKeyFromContract = await publicClient?.readContract({
+      // Step 1: Read encrypted bytes from contract
+      // account must be passed so msg.sender is set correctly in the view call
+      const encryptedBytes = (await publicClient?.readContract({
         address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
         abi: [
           {
@@ -325,20 +358,17 @@ const Home: NextPage = () => {
         ],
         functionName: "getEncryptedCDKey",
         args: [BigInt(selectedTokenId)],
-      });
+        account: connectedAddress,
+      })) as `0x${string}` | undefined;
 
-      if (!encryptedKeyFromContract) {
-        throw new Error("No encrypted CD key found");
-      }
+      if (!encryptedBytes) throw new Error("No encrypted CD key found on-chain");
 
-      setMintingStep("Decrypting with your private key...");
+      setMintingStep("Decrypting with your MetaMask private key...");
 
       // Step 2: Decrypt with MetaMask
-      const encryptedHex = encryptedKeyFromContract.toString().replace("0x", "");
-
       const decrypted = await (window as any).ethereum.request({
         method: "eth_decrypt",
-        params: [encryptedHex, connectedAddress],
+        params: [encryptedBytes, connectedAddress],
       });
 
       setRevealedKey(decrypted);
@@ -352,6 +382,8 @@ const Home: NextPage = () => {
       setLoading(false);
     }
   };
+
+  // ============ Render ============
 
   return (
     <div className="flex items-center flex-col grow pt-10">
@@ -384,13 +416,13 @@ const Home: NextPage = () => {
           </p>
         </div>
 
-        {/* Game Selection */}
+        {/* Game Card */}
         <div className="flex justify-center mb-8">
           <div className="card bg-base-100 shadow-xl max-w-sm">
             <figure className="px-10 pt-10">
               <Image
                 src={GAME_IMAGE}
-                alt="Game"
+                alt="Fallout"
                 width={400}
                 height={192}
                 className="rounded-xl h-48 w-full object-cover"
@@ -398,36 +430,26 @@ const Home: NextPage = () => {
               />
             </figure>
             <div className="card-body items-center text-center">
-              <h2 className="card-title">Game Title</h2>
-              <p>Mint your NFT to get a game CD key</p>
+              <h2 className="card-title">Fallout</h2>
+              <p className="text-sm text-base-content/70">Post-Apocalyptic RPG</p>
+              <p className="text-sm">Mint your NFT to receive a unique game CD key</p>
             </div>
           </div>
         </div>
 
-        {/* Payment Method Selection */}
+        {/* Payment Selection */}
         <div className="flex justify-center mb-8">
-          <div className="btn-group">
-            <button
-              className={`btn ${selectedPayment === "ETH" ? "btn-active" : ""}`}
-              onClick={() => setSelectedPayment("ETH")}
-              disabled={loading}
-            >
-              ETH
-            </button>
-            <button
-              className={`btn ${selectedPayment === "USDT" ? "btn-active" : ""}`}
-              onClick={() => setSelectedPayment("USDT")}
-              disabled={loading}
-            >
-              USDT
-            </button>
-            <button
-              className={`btn ${selectedPayment === "USDC" ? "btn-active" : ""}`}
-              onClick={() => setSelectedPayment("USDC")}
-              disabled={loading}
-            >
-              USDC
-            </button>
+          <div className="join">
+            {(["ETH", "USDT", "USDC"] as const).map(method => (
+              <button
+                key={method}
+                className={`btn join-item ${selectedPayment === method ? "btn-active btn-primary" : ""}`}
+                onClick={() => setSelectedPayment(method)}
+                disabled={loading}
+              >
+                {method}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -438,21 +460,16 @@ const Home: NextPage = () => {
             onClick={handleMint}
             disabled={loading || !connectedAddress}
           >
-            {loading ? mintingStep || "Processing..." : `Mint NFT with ${selectedPayment}`}
+            {loading && mintingStep ? mintingStep : `Mint NFT with ${selectedPayment}`}
           </button>
         </div>
 
-        <div className="flex items-center flex-col flex-grow pt-10">
-          <CDKeyEncryption />
-          {/* Your other content */}
-        </div>
-
-        {/* CD Key Management Section */}
+        {/* CD Key Management */}
         {ownedTokens.length > 0 && (
           <div className="card bg-base-200 shadow-xl p-6 mb-8">
             <h2 className="text-2xl font-bold mb-4">Your NFTs & CD Keys</h2>
 
-            {/* Token Selection */}
+            {/* Token Selector */}
             <div className="form-control mb-4">
               <label className="label">
                 <span className="label-text">Select Your Token</span>
@@ -460,7 +477,10 @@ const Home: NextPage = () => {
               <select
                 className="select select-bordered"
                 value={selectedTokenId}
-                onChange={e => setSelectedTokenId(Number(e.target.value))}
+                onChange={e => {
+                  setSelectedTokenId(Number(e.target.value));
+                  setRevealedKey("");
+                }}
                 disabled={loading}
               >
                 {ownedTokens.map(tokenId => (
@@ -472,7 +492,7 @@ const Home: NextPage = () => {
               {selectedTokenId > 0 && (
                 <label className="label">
                   <span className="label-text-alt">
-                    Status: {isClaimed ? "✅ CD Key Claimed" : "⏳ Not Claimed Yet"}
+                    {isClaimed ? "✅ CD Key Claimed — NFT is Soulbound" : "⏳ CD Key Not Claimed Yet"}
                   </span>
                 </label>
               )}
@@ -481,24 +501,24 @@ const Home: NextPage = () => {
             {/* Claim Button */}
             {selectedTokenId > 0 && !isClaimed && (
               <button
-                className="btn btn-accent mb-4"
+                className="btn btn-accent w-full mb-4"
                 onClick={handleClaimCDKey}
                 disabled={loading || !connectedAddress}
               >
-                {loading ? mintingStep || "Processing..." : "Claim CD Key"}
+                {loading ? mintingStep || "Processing..." : "🔐 Claim CD Key (Makes NFT Soulbound)"}
               </button>
             )}
 
             {/* Reveal Section */}
             {selectedTokenId > 0 && isClaimed && (
               <>
-                <div className="divider">Reveal Your CD Key</div>
+                <div className="divider">Your CD Key</div>
                 <button
-                  className="btn btn-info mb-4"
+                  className="btn btn-info w-full mb-4"
                   onClick={handleRevealCDKey}
                   disabled={loading || !connectedAddress}
                 >
-                  {loading ? mintingStep || "Processing..." : "Reveal CD Key"}
+                  {loading ? mintingStep || "Processing..." : "🔑 Reveal CD Key"}
                 </button>
               </>
             )}
@@ -514,6 +534,17 @@ const Home: NextPage = () => {
                     <code>{revealedKey}</code>
                   </pre>
                 </div>
+                <div className="flex justify-end mt-2">
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(revealedKey);
+                      notification.success("Copied to clipboard!");
+                    }}
+                  >
+                    📋 Copy Key
+                  </button>
+                </div>
                 <label className="label">
                   <span className="label-text-alt text-warning">
                     ⚠️ This key is unique and can only be used once. Keep it safe!
@@ -525,30 +556,28 @@ const Home: NextPage = () => {
         )}
 
         {/* Instructions */}
-        <div className="alert alert-info shadow-lg">
+        <div className="alert alert-info shadow-lg mb-8">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            className="stroke-current flex-shrink-0 w-6 h-6"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
           <div>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              className="stroke-current flex-shrink-0 w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              ></path>
-            </svg>
-            <div>
-              <h3 className="font-bold">How it works:</h3>
-              <div className="text-xs">
-                <p>1. Mint your NFT (commitment hash is stored on-chain)</p>
-                <p>2. Claim your CD key (encrypted with your public key & stored on-chain)</p>
-                <p>3. Reveal the CD key (decrypt with your MetaMask)</p>
-                <p>4. Your NFT becomes soulbound (non-transferable) after claiming</p>
-              </div>
-            </div>
+            <h3 className="font-bold">How it works:</h3>
+            <ol className="text-xs list-decimal list-inside space-y-1 mt-1">
+              <li>Mint your NFT — your commitment hash is verified on-chain via Merkle proof</li>
+              <li>Claim your CD key — encrypted with your MetaMask key and stored on-chain</li>
+              <li>Your NFT becomes permanently soulbound (non-transferable)</li>
+              <li>Reveal your CD key anytime by decrypting with MetaMask</li>
+            </ol>
           </div>
         </div>
       </div>

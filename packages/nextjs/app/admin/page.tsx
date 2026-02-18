@@ -2,6 +2,9 @@
 "use client";
 
 import { useState } from "react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
+import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 // packages/nextjs/app/admin/page.tsx
@@ -28,71 +31,35 @@ import { notification } from "~~/utils/scaffold-eth";
 
 // packages/nextjs/app/admin/page.tsx
 
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
 export default function AdminPage() {
+  const { address: connectedAddress, isConnected } = useAccount();
   const [keys, setKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [settingRoot, setSettingRoot] = useState(false);
   const [quantity, setQuantity] = useState(10);
-  const [adminSecret, setAdminSecret] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
+  const [merkleRoot, setMerkleRoot] = useState<string>("");
+  const [totalHashes, setTotalHashes] = useState<number>(0);
+  const [rootTxHash, setRootTxHash] = useState<string>("");
+
+  const { writeContractAsync } = useScaffoldWriteContract({
+    contractName: "SoulboundNFT",
+  });
 
   async function generateKeys() {
-    if (!adminSecret) {
-      notification.error("Please enter admin secret");
-      return;
-    }
-
     setLoading(true);
-
     try {
       const response = await fetch("/api/admin/generate-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adminSecret,
-          quantity,
-        }),
+        body: JSON.stringify({ quantity }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         setKeys(data.keys || []);
+        setMerkleRoot(data.merkleRoot);
+        setTotalHashes(data.totalHashes);
         notification.success(`✅ Generated ${data.count} commitment hashes!`);
       } else {
         notification.error(data.error || "Failed to generate keys");
@@ -105,6 +72,30 @@ export default function AdminPage() {
     }
   }
 
+  async function pushMerkleRoot() {
+    if (!merkleRoot) {
+      notification.error("Generate keys first");
+      return;
+    }
+
+    setSettingRoot(true);
+    try {
+      // Admin wallet signs directly — no private key in backend
+      const txHash = await writeContractAsync({
+        functionName: "setMerkleRoot",
+        args: [merkleRoot as `0x${string}`],
+      });
+
+      setRootTxHash(txHash as string);
+      notification.success("✅ Merkle root pushed to blockchain!");
+    } catch (error: any) {
+      console.error(error);
+      notification.error(`Failed: ${error.message}`);
+    } finally {
+      setSettingRoot(false);
+    }
+  }
+
   function downloadHashes() {
     const content = keys.map((k, i) => `${i + 1},${k.commitmentHash}`).join("\n");
     const blob = new Blob([`Index,Commitment Hash\n${content}`], { type: "text/csv" });
@@ -113,23 +104,32 @@ export default function AdminPage() {
     a.href = url;
     a.download = `commitment-hashes-${Date.now()}.csv`;
     a.click();
-    notification.success("Downloaded!");
-  }
-
-  function copyAllHashes() {
-    const content = keys.map(k => k.commitmentHash).join("\n");
-    navigator.clipboard.writeText(content);
-    notification.success("Copied all hashes to clipboard!");
   }
 
   return (
     <div className="container mx-auto p-8 max-w-6xl">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">🔐 Admin Dashboard</h1>
-        <p className="text-base-content/70">Generate secure commitment hashes for NFT minting</p>
+        <p className="text-base-content/70">Generate CD key batches and manage the Merkle root</p>
       </div>
 
-      {/* Info Alert */}
+      {/* Wallet Connection */}
+      <div className="card bg-base-200 shadow-xl mb-8">
+        <div className="card-body">
+          <h2 className="card-title">Admin Wallet</h2>
+          <p className="text-sm text-base-content/70 mb-4">
+            Connect the wallet that owns the smart contract to push Merkle roots on-chain.
+          </p>
+          <ConnectButton />
+          {isConnected && (
+            <div className="alert alert-success mt-4">
+              <span className="text-sm font-mono">✅ Connected: {connectedAddress}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* How it works */}
       <div className="alert alert-info mb-8">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -142,43 +142,23 @@ export default function AdminPage() {
             strokeLinejoin="round"
             strokeWidth="2"
             d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          ></path>
+          />
         </svg>
         <div className="text-sm">
-          <p className="font-bold">How it works:</p>
-          <ol className="list-decimal list-inside mt-2 space-y-1">
-            <li>CD keys are generated and encrypted server-side</li>
-            <li>Only commitment hashes are distributed for minting</li>
-            <li>Original CD keys remain encrypted in database</li>
-            <li>Users redeem by proving NFT ownership - no plain-text key needed</li>
+          <p className="font-bold">Batch workflow:</p>
+          <ol className="list-decimal list-inside mt-1 space-y-1">
+            <li>Generate a batch — keys encrypted in DB, Merkle root computed</li>
+            <li>Connect the contract owner wallet</li>
+            <li>Push Merkle root — your wallet signs the transaction directly</li>
+            <li>Users can now mint using any hash from this or previous batches</li>
           </ol>
         </div>
       </div>
 
-      {/* Generation Card */}
+      {/* Generate Card */}
       <div className="card bg-base-200 shadow-xl mb-8">
         <div className="card-body">
-          <h2 className="card-title">Generate Commitment Hashes</h2>
-
-          <div className="form-control w-full">
-            <label className="label">
-              <span className="label-text font-semibold">Admin Secret</span>
-            </label>
-            <div className="join w-full">
-              <input
-                type={showSecret ? "text" : "password"}
-                placeholder="Enter admin secret"
-                className="input input-bordered join-item flex-1"
-                value={adminSecret}
-                onChange={e => setAdminSecret(e.target.value)}
-                onKeyPress={e => e.key === "Enter" && generateKeys()}
-              />
-              <button className="btn join-item" onClick={() => setShowSecret(!showSecret)} type="button">
-                {showSecret ? "🙈" : "👁️"}
-              </button>
-            </div>
-          </div>
-
+          <h2 className="card-title">Generate New Batch</h2>
           <div className="form-control w-full">
             <label className="label">
               <span className="label-text font-semibold">Quantity</span>
@@ -193,41 +173,64 @@ export default function AdminPage() {
               onChange={e => setQuantity(parseInt(e.target.value) || 1)}
             />
           </div>
-
           <div className="card-actions justify-end mt-4">
-            <button className="btn btn-primary" onClick={generateKeys} disabled={loading || !adminSecret}>
+            <button className="btn btn-primary" onClick={generateKeys} disabled={loading}>
               {loading ? (
                 <>
-                  <span className="loading loading-spinner"></span>
+                  <span className="loading loading-spinner" />
                   Generating...
                 </>
               ) : (
-                <>🔑 Generate {quantity} Hashes</>
+                <>🔑 Generate {quantity} Keys</>
               )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Results Card */}
-      {keys.length > 0 && (
-        <div className="card bg-base-100 shadow-xl">
+      {/* Merkle Root Card */}
+      {merkleRoot && (
+        <div className="card bg-base-100 shadow-xl mb-8 border border-primary">
           <div className="card-body">
-            <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-              <h2 className="card-title">
-                Generated Commitment Hashes <span className="badge badge-primary">{keys.length}</span>
-              </h2>
-              <div className="flex gap-2">
-                <button className="btn btn-sm btn-outline" onClick={copyAllHashes}>
-                  📋 Copy All
-                </button>
-                <button className="btn btn-sm btn-primary" onClick={downloadHashes}>
-                  💾 Download CSV
+            <h2 className="card-title text-primary">🌳 Merkle Root</h2>
+
+            <div className="stats shadow mb-4">
+              <div className="stat">
+                <div className="stat-title">Total Unredeemed Hashes</div>
+                <div className="stat-value text-primary">{totalHashes}</div>
+                <div className="stat-desc">Included in this Merkle tree</div>
+              </div>
+            </div>
+
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-semibold">Merkle Root</span>
+              </label>
+              <div className="join w-full">
+                <input
+                  className="input input-bordered join-item flex-1 font-mono text-xs"
+                  value={merkleRoot}
+                  readOnly
+                />
+                <button
+                  className="btn join-item"
+                  onClick={() => {
+                    navigator.clipboard.writeText(merkleRoot);
+                    notification.info("Copied!");
+                  }}
+                >
+                  📋
                 </button>
               </div>
             </div>
 
-            <div className="alert alert-warning">
+            {rootTxHash && (
+              <div className="alert alert-success mt-4">
+                <span className="text-xs font-mono">✅ On-chain tx: {rootTxHash}</span>
+              </div>
+            )}
+
+            <div className="alert alert-warning mt-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="stroke-current shrink-0 h-6 w-6"
@@ -241,18 +244,52 @@ export default function AdminPage() {
                   d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
-              <span>
-                <strong>Important:</strong> Save these commitment hashes! Users will need them to mint NFTs.
-              </span>
+              <span>Connect the contract owner wallet before pushing. Wrong wallet = transaction reverts.</span>
             </div>
 
+            <div className="card-actions justify-end mt-4">
+              <button
+                className="btn btn-primary btn-lg w-full"
+                onClick={pushMerkleRoot}
+                disabled={settingRoot || !!rootTxHash || !isConnected}
+              >
+                {!isConnected ? (
+                  "🔌 Connect Owner Wallet First"
+                ) : settingRoot ? (
+                  <>
+                    <span className="loading loading-spinner" />
+                    Pushing to Blockchain...
+                  </>
+                ) : rootTxHash ? (
+                  "✅ Root Pushed"
+                ) : (
+                  "⛓️ Push Merkle Root to Blockchain"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hashes Table */}
+      {keys.length > 0 && (
+        <div className="card bg-base-100 shadow-xl">
+          <div className="card-body">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="card-title">
+                This Batch <span className="badge badge-primary">{keys.length}</span>
+              </h2>
+              <button className="btn btn-sm btn-outline" onClick={downloadHashes}>
+                💾 Download CSV
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="table table-zebra table-pin-rows">
                 <thead>
                   <tr>
                     <th className="bg-base-200">#</th>
                     <th className="bg-base-200">Commitment Hash</th>
-                    <th className="bg-base-200">Actions</th>
+                    <th className="bg-base-200">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -265,24 +302,16 @@ export default function AdminPage() {
                           className="btn btn-xs btn-ghost"
                           onClick={() => {
                             navigator.clipboard.writeText(key.commitmentHash);
-                            notification.info(`Copied hash #${i + 1}!`);
+                            notification.info(`Copied #${i + 1}!`);
                           }}
                         >
-                          📋 Copy
+                          📋
                         </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            <div className="stats shadow mt-4">
-              <div className="stat">
-                <div className="stat-title">Total Generated</div>
-                <div className="stat-value text-primary">{keys.length}</div>
-                <div className="stat-desc">Commitment hashes ready for distribution</div>
-              </div>
             </div>
           </div>
         </div>
