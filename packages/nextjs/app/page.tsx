@@ -34,8 +34,6 @@ import { notification } from "~~/utils/scaffold-eth";
 
 // packages/nextjs/app/page.tsx
 
-// packages/nextjs/app/page.tsx
-
 const GAME_IMAGE =
   "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/bafybeiaiedjkix3n3qx6il3lwj2ye7y5fkbaytu7m4q6yxlde5uqrsgztm";
 
@@ -135,7 +133,7 @@ const Home: NextPage = () => {
     setMintingStep("Getting commitment hash from database...");
 
     try {
-      // Step 1: Get commitment hash + Merkle proof from backend
+      // Step 1: Get commitment hash
       const commitmentRes = await fetch("/api/mint/get-commitment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -155,9 +153,6 @@ const Home: NextPage = () => {
           : `0x${commitmentData.commitmentHash}`
       ) as `0x${string}`;
 
-      // Merkle proof array from backend
-      const merkleProof = commitmentData.merkleProof as `0x${string}`[];
-
       setMintingStep(`Minting NFT with ${selectedPayment}...`);
 
       // Step 2: Mint on-chain with commitment hash + proof
@@ -166,18 +161,18 @@ const Home: NextPage = () => {
       if (selectedPayment === "ETH") {
         txHash = await writeContract({
           functionName: "mintWithETH",
-          args: [commitmentHashBytes32, merkleProof],
+          args: [commitmentHashBytes32],
           value: mintPriceETH,
         });
       } else if (selectedPayment === "USDT") {
         txHash = await writeContract({
           functionName: "mintWithUSDT",
-          args: [commitmentHashBytes32, merkleProof],
+          args: [commitmentHashBytes32],
         });
       } else {
         txHash = await writeContract({
           functionName: "mintWithUSDC",
-          args: [commitmentHashBytes32, merkleProof],
+          args: [commitmentHashBytes32],
         });
       }
 
@@ -573,7 +568,6 @@ const Home: NextPage = () => {
           <div>
             <h3 className="font-bold">How it works:</h3>
             <ol className="text-xs list-decimal list-inside space-y-1 mt-1">
-              <li>Mint your NFT — your commitment hash is verified on-chain via Merkle proof</li>
               <li>Claim your CD key — encrypted with your MetaMask key and stored on-chain</li>
               <li>Your NFT becomes permanently soulbound (non-transferable)</li>
               <li>Reveal your CD key anytime by decrypting with MetaMask</li>

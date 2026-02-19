@@ -9,22 +9,15 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 /**
  * @title SoulboundNFT - Game CD-Key Distribution via NFTs
  * @dev NFT with ERC20 payments, 5% royalties, and encrypted CD-key storage
  * @notice Supports ETH, USDT, and USDC payments
  * @notice NFTs become soulbound (non-transferable) when CD-keys are claimed
- * @notice Commitment hashes verified via Merkle proof at mint time
+ * @notice Commitment hash verified at claim time against what was stored at mint
  */
-contract SoulboundNFT is
-    ERC721,
-    ERC2981,
-    Ownable2Step,
-    ReentrancyGuard,
-    Pausable
-{
+contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
@@ -32,30 +25,20 @@ contract SoulboundNFT is
 
     // Prices — Chainlink feed integration planned for production
     uint128 public mintPriceETH = 0.01 ether;
-    uint128 public mintPriceUSD = 20e6; // 20 USDC/USDT (6 decimals)
+    uint128 public mintPriceUSD = 20e6;
     uint64 public maxSupply = 10;
     uint64 private nextTokenId = 1;
 
-    // Merkle root of all valid commitment hashes
-    bytes32 public merkleRoot;
-
-    // Static metadata URI
     string private _baseTokenURI;
 
-    // Supported payment tokens
     IERC20 public USDT;
     IERC20 public USDC;
 
-    // CD-Key management
-    mapping(uint256 => bytes32) private commitmentHash; // Set at mint time
-    mapping(uint256 => bytes) private encryptedCdKey; // Set at claim time
+    mapping(uint256 => bytes32) private commitmentHash;
+    mapping(uint256 => bytes) private encryptedCdKey;
     mapping(uint256 => bool) private isClaimed;
     mapping(uint256 => uint256) private claimTimestamp;
 
-    // Prevent same commitment hash from being used twice
-    mapping(bytes32 => bool) public usedCommitmentHashes;
-
-    // Burned token counter for accurate totalSupply
     uint256 private _burnedCount;
 
     // ============ Events ============
@@ -66,17 +49,8 @@ contract SoulboundNFT is
         address indexed paymentToken,
         bytes32 commitmentHash
     );
-    event CdKeyClaimed(
-        uint256 indexed tokenId,
-        address indexed owner,
-        bytes32 commitmentHash
-    );
-    event NFTBurned(
-        uint256 indexed tokenId,
-        address indexed owner,
-        bool wasSoulbound
-    );
-    event MerkleRootUpdated(bytes32 oldRoot, bytes32 newRoot);
+    event CdKeyClaimed(uint256 indexed tokenId, address indexed owner, bytes32 commitmentHash);
+    event NFTBurned(uint256 indexed tokenId, address indexed owner, bool wasSoulbound);
     event MintPriceUpdated(uint256 ethPrice, uint256 usdPrice);
     event MaxSupplyUpdated(uint256 oldSupply, uint256 newSupply);
     event PaymentTokensUpdated(address usdt, address usdc);
@@ -94,8 +68,6 @@ contract SoulboundNFT is
     error WithdrawalFailed();
     error ZeroAddress();
     error InvalidCommitmentHash();
-    error CommitmentHashAlreadyUsed();
-    error MerkleRootNotSet();
 
     // ============ Constructor ============
 
@@ -116,9 +88,7 @@ contract SoulboundNFT is
 
     // ============ Metadata ============
 
-    function tokenURI(
-        uint256 tokenId
-    ) public view override returns (string memory) {
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
         return _baseTokenURI;
     }
@@ -128,47 +98,17 @@ contract SoulboundNFT is
         emit BaseURIUpdated(newBaseURI);
     }
 
-    // ============ Merkle Root Management ============
+    // ============ Minting ============
 
     /**
-     * @notice Set or update the Merkle root of valid commitment hashes
-     * @dev Called by owner after each batch of CD keys is generated
-     * @param newRoot The new Merkle root
-     */
-    function setMerkleRoot(bytes32 newRoot) external onlyOwner {
-        if (newRoot == bytes32(0)) revert InvalidCommitmentHash();
-        bytes32 oldRoot = merkleRoot;
-        merkleRoot = newRoot;
-        emit MerkleRootUpdated(oldRoot, newRoot);
-    }
-
-    /**
-     * @notice Verify a commitment hash is valid against the Merkle tree
-     * @param cdCommitmentHash The commitment hash to verify
-     * @param merkleProof The proof path
-     * @return True if valid
-     */
-    function verifyCommitmentHash(
-        bytes32 cdCommitmentHash,
-        bytes32[] calldata merkleProof
-    ) public view returns (bool) {
-        bytes32 leaf = keccak256(abi.encodePacked(cdCommitmentHash));
-        return MerkleProof.verify(merkleProof, merkleRoot, leaf);
-    }
-
-    // ============ Minting Functions ============
-
-    /**
-     * @notice Mint NFT paying with ETH
-     * @param cdCommitmentHash Commitment hash from the database
-     * @param merkleProof Proof that commitment hash is in the current Merkle tree
+     * @notice Mint NFT with ETH
+     * @param cdCommitmentHash Hash of the CD key reserved from backend
      */
     function mintWithETH(
-        bytes32 cdCommitmentHash,
-        bytes32[] calldata merkleProof
+        bytes32 cdCommitmentHash
     ) external payable whenNotPaused nonReentrant {
         if (msg.value < mintPriceETH) revert InsufficientPayment();
-        _validateAndMint(cdCommitmentHash, merkleProof);
+        _validateCommitment(cdCommitmentHash);
         uint256 tokenId = _mintNFT(msg.sender, cdCommitmentHash);
 
         if (msg.value > mintPriceETH) {
@@ -182,15 +122,13 @@ contract SoulboundNFT is
     }
 
     /**
-     * @notice Mint NFT paying with USDT
-     * @param cdCommitmentHash Commitment hash from the database
-     * @param merkleProof Proof that commitment hash is in the current Merkle tree
+     * @notice Mint NFT with USDT
+     * @param cdCommitmentHash Hash of the CD key reserved from backend
      */
     function mintWithUSDT(
-        bytes32 cdCommitmentHash,
-        bytes32[] calldata merkleProof
+        bytes32 cdCommitmentHash
     ) external whenNotPaused nonReentrant {
-        _validateAndMint(cdCommitmentHash, merkleProof);
+        _validateCommitment(cdCommitmentHash);
         USDT.safeTransferFrom(msg.sender, address(this), mintPriceUSD);
         uint256 tokenId = _mintNFT(msg.sender, cdCommitmentHash);
 
@@ -198,44 +136,25 @@ contract SoulboundNFT is
     }
 
     /**
-     * @notice Mint NFT paying with USDC
-     * @param cdCommitmentHash Commitment hash from the database
-     * @param merkleProof Proof that commitment hash is in the current Merkle tree
+     * @notice Mint NFT with USDC
+     * @param cdCommitmentHash Hash of the CD key reserved from backend
      */
     function mintWithUSDC(
-        bytes32 cdCommitmentHash,
-        bytes32[] calldata merkleProof
+        bytes32 cdCommitmentHash
     ) external whenNotPaused nonReentrant {
-        _validateAndMint(cdCommitmentHash, merkleProof);
+        _validateCommitment(cdCommitmentHash);
         USDC.safeTransferFrom(msg.sender, address(this), mintPriceUSD);
         uint256 tokenId = _mintNFT(msg.sender, cdCommitmentHash);
 
         emit NFTMinted(tokenId, msg.sender, address(USDC), cdCommitmentHash);
     }
 
-    /**
-     * @dev Validates commitment hash and marks it as used
-     */
-    function _validateAndMint(
-        bytes32 cdCommitmentHash,
-        bytes32[] calldata merkleProof
-    ) private {
+    function _validateCommitment(bytes32 cdCommitmentHash) private view {
         if (nextTokenId > maxSupply) revert MaxSupplyReached();
-        if (merkleRoot == bytes32(0)) revert MerkleRootNotSet();
         if (cdCommitmentHash == bytes32(0)) revert InvalidCommitmentHash();
-        if (usedCommitmentHashes[cdCommitmentHash])
-            revert CommitmentHashAlreadyUsed();
-        if (!verifyCommitmentHash(cdCommitmentHash, merkleProof))
-            revert InvalidCommitmentHash();
-
-        // Mark as used to prevent replay
-        usedCommitmentHashes[cdCommitmentHash] = true;
     }
 
-    function _mintNFT(
-        address to,
-        bytes32 cdCommitmentHash
-    ) private returns (uint256) {
+    function _mintNFT(address to, bytes32 cdCommitmentHash) private returns (uint256) {
         uint256 tokenId = nextTokenId++;
         commitmentHash[tokenId] = cdCommitmentHash;
         _safeMint(to, tokenId);
@@ -244,6 +163,13 @@ contract SoulboundNFT is
 
     // ============ CD-Key Claim ============
 
+    /**
+     * @notice Claim CD key and make NFT soulbound
+     * @dev cdKeyHash must match commitment stored at mint time
+     * @param tokenId The token ID
+     * @param cdKeyHash Must match the commitmentHash stored at mint
+     * @param ownerEncryptedKey CD key encrypted with owner's MetaMask public key
+     */
     function claimCdKey(
         uint256 tokenId,
         bytes32 cdKeyHash,
@@ -251,8 +177,7 @@ contract SoulboundNFT is
     ) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (isClaimed[tokenId]) revert AlreadyClaimed();
-        if (commitmentHash[tokenId] != cdKeyHash)
-            revert InvalidCommitmentHash();
+        if (commitmentHash[tokenId] != cdKeyHash) revert InvalidCommitmentHash();
 
         encryptedCdKey[tokenId] = ownerEncryptedKey;
         isClaimed[tokenId] = true;
@@ -261,17 +186,17 @@ contract SoulboundNFT is
         emit CdKeyClaimed(tokenId, msg.sender, cdKeyHash);
     }
 
-    function getEncryptedCDKey(
-        uint256 tokenId
-    ) external view returns (bytes memory) {
+    /**
+     * @notice Retrieve encrypted CD key — only callable by token owner
+     * @param tokenId The token ID
+     */
+    function getEncryptedCDKey(uint256 tokenId) external view returns (bytes memory) {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (!isClaimed[tokenId]) revert NotClaimed();
         return encryptedCdKey[tokenId];
     }
 
-    function getCommitmentHash(
-        uint256 tokenId
-    ) external view returns (bytes32) {
+    function getCommitmentHash(uint256 tokenId) external view returns (bytes32) {
         return commitmentHash[tokenId];
     }
 
@@ -279,14 +204,16 @@ contract SoulboundNFT is
         return isClaimed[tokenId];
     }
 
-    function getClaimTimestamp(
-        uint256 tokenId
-    ) external view returns (uint256) {
+    function getClaimTimestamp(uint256 tokenId) external view returns (uint256) {
         return claimTimestamp[tokenId];
     }
 
     // ============ Burn ============
 
+    /**
+     * @notice Burn NFT for game library management
+     * @dev Soulbound NFTs are intentionally burnable
+     */
     function burn(uint256 tokenId) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
 
@@ -318,49 +245,34 @@ contract SoulboundNFT is
 
     // ============ Royalty ============
 
-    function setRoyaltyInfo(
-        address receiver,
-        uint96 feeNumerator
-    ) external onlyOwner {
+    function setRoyaltyInfo(address receiver, uint96 feeNumerator) external onlyOwner {
         if (receiver == address(0)) revert ZeroAddress();
         require(feeNumerator <= 1000, "Royalty too high (max 10%)");
         _setDefaultRoyalty(receiver, feeNumerator);
         emit RoyaltyUpdated(receiver, feeNumerator);
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC721, ERC2981) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
     // ============ Admin ============
 
-    function setMintPrices(
-        uint256 ethPrice,
-        uint256 usdPrice
-    ) external onlyOwner {
+    function setMintPrices(uint256 ethPrice, uint256 usdPrice) external onlyOwner {
         mintPriceETH = uint128(ethPrice);
         mintPriceUSD = uint128(usdPrice);
         emit MintPriceUpdated(ethPrice, usdPrice);
     }
 
-    function setPaymentTokens(
-        address usdtAddress,
-        address usdcAddress
-    ) external onlyOwner {
-        if (usdtAddress == address(0) || usdcAddress == address(0))
-            revert ZeroAddress();
+    function setPaymentTokens(address usdtAddress, address usdcAddress) external onlyOwner {
+        if (usdtAddress == address(0) || usdcAddress == address(0)) revert ZeroAddress();
         USDT = IERC20(usdtAddress);
         USDC = IERC20(usdcAddress);
         emit PaymentTokensUpdated(usdtAddress, usdcAddress);
     }
 
     function setMaxSupply(uint256 newMaxSupply) external onlyOwner {
-        require(
-            newMaxSupply >= nextTokenId - 1,
-            "Cannot set below current supply"
-        );
+        require(newMaxSupply >= nextTokenId - 1, "Cannot set below current supply");
         uint256 oldSupply = maxSupply;
         maxSupply = uint64(newMaxSupply);
         emit MaxSupplyUpdated(oldSupply, newMaxSupply);
@@ -370,18 +282,11 @@ contract SoulboundNFT is
         return nextTokenId - 1 - _burnedCount;
     }
 
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
 
     function withdrawETH() external onlyOwner nonReentrant {
-        (bool success, ) = payable(owner()).call{value: address(this).balance}(
-            ""
-        );
+        (bool success, ) = payable(owner()).call{value: address(this).balance}("");
         if (!success) revert WithdrawalFailed();
     }
 
@@ -405,9 +310,7 @@ contract SoulboundNFT is
         if (usdcBalance > 0) USDC.safeTransfer(owner(), usdcBalance);
     }
 
-    function emergencyWithdrawToken(
-        address token
-    ) external onlyOwner nonReentrant {
+    function emergencyWithdrawToken(address token) external onlyOwner nonReentrant {
         if (token == address(0)) revert ZeroAddress();
         IERC20 t = IERC20(token);
         t.safeTransfer(owner(), t.balanceOf(address(this)));

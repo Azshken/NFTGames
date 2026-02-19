@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155111: {
     SoulboundNFT: {
-      address: "0x11ff4c81261737ba5c8c1a5f4177037525bc415d",
+      address: "0x0405179c46f59f3b33d3d797d3e9be75602cc6ad",
       abi: [
         {
           type: "constructor",
@@ -287,19 +287,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "merkleRoot",
-          inputs: [],
-          outputs: [
-            {
-              name: "",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
           name: "mintPriceETH",
           inputs: [],
           outputs: [
@@ -333,11 +320,6 @@ const deployedContracts = {
               type: "bytes32",
               internalType: "bytes32",
             },
-            {
-              name: "merkleProof",
-              type: "bytes32[]",
-              internalType: "bytes32[]",
-            },
           ],
           outputs: [],
           stateMutability: "payable",
@@ -351,11 +333,6 @@ const deployedContracts = {
               type: "bytes32",
               internalType: "bytes32",
             },
-            {
-              name: "merkleProof",
-              type: "bytes32[]",
-              internalType: "bytes32[]",
-            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -368,11 +345,6 @@ const deployedContracts = {
               name: "cdCommitmentHash",
               type: "bytes32",
               internalType: "bytes32",
-            },
-            {
-              name: "merkleProof",
-              type: "bytes32[]",
-              internalType: "bytes32[]",
             },
           ],
           outputs: [],
@@ -589,19 +561,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setMerkleRoot",
-          inputs: [
-            {
-              name: "newRoot",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
           name: "setMintPrices",
           inputs: [
             {
@@ -763,49 +722,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "usedCommitmentHashes",
-          inputs: [
-            {
-              name: "",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "bool",
-              internalType: "bool",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "verifyCommitmentHash",
-          inputs: [
-            {
-              name: "cdCommitmentHash",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-            {
-              name: "merkleProof",
-              type: "bytes32[]",
-              internalType: "bytes32[]",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "bool",
-              internalType: "bool",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
           name: "withdrawAll",
           inputs: [],
           outputs: [],
@@ -935,25 +851,6 @@ const deployedContracts = {
               type: "uint256",
               indexed: false,
               internalType: "uint256",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
-          name: "MerkleRootUpdated",
-          inputs: [
-            {
-              name: "oldRoot",
-              type: "bytes32",
-              indexed: false,
-              internalType: "bytes32",
-            },
-            {
-              name: "newRoot",
-              type: "bytes32",
-              indexed: false,
-              internalType: "bytes32",
             },
           ],
           anonymous: false,
@@ -1172,11 +1069,6 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "CommitmentHashAlreadyUsed",
-          inputs: [],
-        },
-        {
-          type: "error",
           name: "ERC2981InvalidDefaultRoyalty",
           inputs: [
             {
@@ -1369,11 +1261,6 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "MerkleRootNotSet",
-          inputs: [],
-        },
-        {
-          type: "error",
           name: "NotClaimed",
           inputs: [],
         },
@@ -1432,7 +1319,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 10292099,
+      deployedOnBlock: 10294268,
     },
   },
 } as const;

@@ -1,4 +1,26 @@
-# 🏗 Scaffold-ETH 2
+<h1 align="center"> NFTGames </h1>
+
+Video game keys represented with NFTs, proving the ownership of the video game. People can connect to the website with their crypto wallet and mint an NFT that represents a claim on video game CDKey.
+
+### Benefits
+
+- Can migrate video games between platforms. NFTs prove that the user bought the game legitimatelly.
+- Cannot trade already used/revealed CdKey (Soulbound).
+- Revenue shared with developers from the secondary sales (royalty fee).
+- People own their games!
+- Whole game library in one place.
+
+### How it works
+
+When the owner of the NFT redeems the CDKey the NFT becomes untransferrable (Soulbound) and the CDKey is deleted from the seller's database. The CDKey is encrypted with the NFT owner's publicKey, revealable any time to the owner without exposing the plainTextCdKey.
+
+### The flow
+
+- People can mint an NFT with the CdKeyHash (claim to the CdKey) without redemption -- these NFTs can be used as gifts, or sold on secondary markets (royalty fees apply).
+- People can claim the CdKey -- the CdKey gets encrypted with the current NFT owner's publicKey and imprinted onto the NFT; NFT becomes untrasferrable (Soulbound); CdKey is deleted from the seller's database
+- People can mint an NFT with redemption (mintAndClaim) -- this makes the NFT non-transferrable (Soulbound); better user experience for people who want to use the CdKey right away -- only one TX is needed (combines the point 1&2)
+
+## using 🏗 Scaffold-ETH 2
 
 <h4 align="center">
   <a href="https://docs.scaffoldeth.io">Documentation</a> |
