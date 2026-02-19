@@ -1,17 +1,27 @@
-// packages/nextjs/app/api/admin/generate-keys/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { encrypt, generateCDKey, hashCDKey } from "~~/utils/crypto";
 
+const MAX_QUANTITY = 100;
+
 export async function POST(req: NextRequest) {
-  // Simple secret header check — protects the endpoint without a private key
   const adminSecret = req.headers.get("x-admin-secret");
-  if (adminSecret !== process.env.ADMIN_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Explicit null/empty check prevents timing issues if ADMIN_SECRET is unset
+  if (!adminSecret || adminSecret !== process.env.ADMIN_SECRET) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const { quantity = 10 } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const quantity = Number(body.quantity ?? 10);
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
+      return NextResponse.json(
+        { success: false, error: `Quantity must be an integer between 1 and ${MAX_QUANTITY}` },
+        { status: 400 },
+      );
+    }
 
     const keys = [];
 
@@ -29,18 +39,17 @@ export async function POST(req: NextRequest) {
     }
 
     const allHashes = await sql`
-      SELECT commitment_hash FROM cdkeys
-      WHERE is_redeemed = FALSE
+      SELECT commitment_hash FROM cdkeys WHERE is_redeemed = FALSE
     `;
 
     return NextResponse.json({
       success: true,
       count: keys.length,
       keys,
-      totalHashes: allHashes.rows.length,
+      totalAvailable: allHashes.rows.length,
     });
   } catch (error: any) {
-    console.error("Generate keys error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Generate Keys API error:", error);
+    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
   }
 }

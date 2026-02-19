@@ -1,22 +1,29 @@
-// packages/nextjs/app/api/redeem/confirm/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { markCDKeyRedeemed } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const { cdkeyId, userAddress, txHash } = await req.json();
+    const body = await req.json().catch(() => null);
 
-    if (!cdkeyId || !userAddress || !txHash) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!body) {
+      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const ipAddress = req.headers.get("x-forwarded-for") || undefined;
+    const { cdkeyId, userAddress, txHash } = body;
+
+    if (!cdkeyId || !userAddress || !txHash) {
+      return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
+    }
+
+    // x-forwarded-for can be comma-separated when behind multiple proxies — take first (real client) IP
+    const rawIp = req.headers.get("x-forwarded-for");
+    const ipAddress = rawIp ? rawIp.split(",")[0].trim() : undefined;
 
     await markCDKeyRedeemed(cdkeyId, userAddress, txHash, ipAddress);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Confirm redemption error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Redeem Confirm API error:", error);
+    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
   }
 }

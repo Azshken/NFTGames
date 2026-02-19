@@ -1,4 +1,3 @@
-// packages/nextjs/app/api/redeem/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 import scaffoldConfig from "~~/scaffold.config";
@@ -7,10 +6,28 @@ import { getCDKeyByTokenId, storeUserEncryptedKey } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const { tokenId, userAddress, userPublicKey } = await req.json();
+    const body = await req.json().catch(() => null);
+
+    if (!body) {
+      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const { tokenId, userAddress, userPublicKey } = body;
 
     if (!tokenId || !userAddress || !userPublicKey) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Validate tokenId before BigInt conversion
+    const tokenIdNum = Number(tokenId);
+    if (!Number.isFinite(tokenIdNum) || !Number.isInteger(tokenIdNum) || tokenIdNum < 0) {
+      return NextResponse.json({ success: false, error: "Invalid tokenId" }, { status: 400 });
+    }
+
+    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+    if (!contractAddress) {
+      console.error("NEXT_PUBLIC_CONTRACT_ADDRESS is not set");
+      return NextResponse.json({ success: false, error: "Server misconfiguration" }, { status: 500 });
     }
 
     // 1. Verify NFT ownership on-chain
@@ -20,29 +37,32 @@ export async function POST(req: NextRequest) {
     });
 
     const owner = await publicClient.readContract({
-      address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
+      address: contractAddress,
       abi: parseAbi(["function ownerOf(uint256) view returns (address)"]),
       functionName: "ownerOf",
       args: [BigInt(tokenId)],
     });
 
     if (owner.toLowerCase() !== userAddress.toLowerCase()) {
-      return NextResponse.json({ error: "Not NFT owner" }, { status: 403 });
+      return NextResponse.json({ success: false, error: "Not NFT owner" }, { status: 403 });
     }
 
     // 2. Get CDKey from database
     const cdkeyRecord = await getCDKeyByTokenId(BigInt(tokenId));
 
     if (!cdkeyRecord) {
-      return NextResponse.json({ error: "CD key not found or already redeemed" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "CD key not found or already redeemed" }, { status: 404 });
     }
 
-    // 3. Check if already has user-encrypted key
+    // 3. If user-encrypted key already exists, return it WITH all required fields
+    //    (commitmentHash + cdkeyId were missing here — caused frontend crash on .startsWith)
     if (cdkeyRecord.user_encrypted_key) {
       return NextResponse.json({
         success: true,
         encryptedCDKey: cdkeyRecord.user_encrypted_key,
-        alreadyRedeemed: true,
+        commitmentHash: cdkeyRecord.commitment_hash,
+        cdkeyId: cdkeyRecord.id,
+        alreadyEncrypted: true,
       });
     }
 
@@ -62,7 +82,7 @@ export async function POST(req: NextRequest) {
       cdkeyId: cdkeyRecord.id,
     });
   } catch (error: any) {
-    console.error("Redeem error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Redeem API error:", error);
+    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
   }
 }

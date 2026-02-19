@@ -10,9 +10,8 @@ import { hardhat } from "viem/chains";
 import { useAccount, usePublicClient } from "wagmi";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
-
-// packages/nextjs/app/page.tsx
 
 // packages/nextjs/app/page.tsx
 
@@ -80,6 +79,16 @@ const Home: NextPage = () => {
     },
   });
 
+  const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SoulboundNFT" });
+  const contractAddress = deployedContractData?.address;
+
+  // Reset stale state when wallet changes
+  useEffect(() => {
+    setOwnedTokens([]);
+    setSelectedTokenId(0);
+    setRevealedKey("");
+  }, [connectedAddress]);
+
   // ============ Contract Writes ============
 
   const { writeContractAsync: writeContract } = useScaffoldWriteContract({
@@ -90,11 +99,11 @@ const Home: NextPage = () => {
 
   useEffect(() => {
     const fetchOwnedTokens = async () => {
-      if (!connectedAddress || !publicClient || !totalSupply) return;
+      if (!connectedAddress || !publicClient || !totalSupply || !contractAddress) return;
 
       try {
         const logs = await publicClient.getLogs({
-          address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
+          address: contractAddress, // ← was process.env.NEXT_PUBLIC_CONTRACT_ADDRESS
           event: parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"),
           fromBlock: 0n,
           toBlock: "latest",
@@ -119,7 +128,7 @@ const Home: NextPage = () => {
     };
 
     fetchOwnedTokens();
-  }, [connectedAddress, totalSupply, publicClient]);
+  }, [connectedAddress, totalSupply, publicClient, contractAddress]);
 
   // ============ Mint ============
 
@@ -341,7 +350,7 @@ const Home: NextPage = () => {
       // Step 1: Read encrypted bytes from contract
       // account must be passed so msg.sender is set correctly in the view call
       const encryptedBytes = (await publicClient?.readContract({
-        address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
+        address: contractAddress as `0x${string}`,
         abi: [
           {
             inputs: [{ name: "tokenId", type: "uint256" }],
