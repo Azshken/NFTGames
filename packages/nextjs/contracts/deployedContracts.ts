@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155111: {
     SoulboundNFT: {
-      address: "0x72bed8923f938874e40e239947a76d65c5d60f84",
+      address: "0x11ff4c81261737ba5c8c1a5f4177037525bc415d",
       abi: [
         {
           type: "constructor",
@@ -1432,7 +1432,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 10287080,
+      deployedOnBlock: 10292099,
     },
   },
 } as const;
