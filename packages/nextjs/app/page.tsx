@@ -33,28 +33,6 @@ import { notification } from "~~/utils/scaffold-eth";
 
 // packages/nextjs/app/page.tsx
 
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
 const GAME_IMAGE =
   "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/bafybeiaiedjkix3n3qx6il3lwj2ye7y5fkbaytu7m4q6yxlde5uqrsgztm";
 
