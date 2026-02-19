@@ -28,46 +28,6 @@ import { notification } from "~~/utils/scaffold-eth";
 
 // packages/nextjs/app/admin/page.tsx
 
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
 export default function AdminPage() {
   const router = useRouter();
   const { address: connectedAddress, isConnected } = useAccount();
