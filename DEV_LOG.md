@@ -1,7 +1,7 @@
 START_OF_DEVELOPMENT
 - I've had this idea of the NFT game keys in my head for longer time, however I've lacked the expertise to realize it.
 I've decided to use Claude Sonnet 4.5(now 4.6) thinking model to help me develop it (It's finally getting usable).
-Project development space on [perplexity](https://www.perplexity.ai/search/yarn-start-found-lockfile-miss-PW9.XhYZRzWs0LeW4s1XjA#0"> : https://www.perplexity.ai/search/yarn-start-found-lockfile-miss-PW9.XhYZRzWs0LeW4s1XjA#0).
+Project development space on [perplexity](https://www.perplexity.ai/search/yarn-start-found-lockfile-miss-PW9.XhYZRzWs0LeW4s1XjA#0).
 
 6/02/2026
 - I've set up VSCode + WSL, foundry dev environment,
@@ -38,3 +38,4 @@ Refactoring the code:
 
 19/02/2026
 - I've redeployed the contract on the PC I use different keystore account on PC and the laptop -> I couldn't commit/push the code from laptop without deployment.
+- Removed the merkletree safeguard it's redundant. Redeployed the contract and changed the frontend.
