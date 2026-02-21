@@ -41,4 +41,15 @@ Refactoring the code:
 - Removed the merkletree safeguard it's redundant. Redeployed the contract and changed the frontend. NOTE: If you edit the .md file on github the Vercel rebuilds the app every time.
 
 20/02/2026
-- I'm reading on EIP-712 and troubleshooting why the redeem function doesn't work
+- I'm reading on EIP-712 and troubleshooting why the redeem function doesn't work.
+
+21/02/2026
+- Implementing the fixes. Never use NEXT_PUBLIC_ for API Keys and secrets in Vercel! The NEXT_PUBLIC_ flag makes it available publicly (it's not just a naming convention).
+- I'm slowly reducing the reliance on scaffold-eth. Using ALCHEMY_RPC_URL, CONTRACT_ADDRESS variables; trying to not rely on deploydContracts.ts
+
+
+
+
+
+Notes:
+- This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lost. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step. 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 
-import deployedContracts from "~~/contracts/deployedContracts";
 import scaffoldConfig from "~~/scaffold.config";
 import { decrypt, encryptWithPublicKey } from "~~/utils/crypto";
 import { getCDKeyByTokenId, storeUserEncryptedKey } from "~~/utils/db";
@@ -21,29 +20,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate tokenId before BigInt conversion
-    const tokenIdNum = Number(tokenId);
-    if (!Number.isFinite(tokenIdNum) || !Number.isInteger(tokenIdNum) || tokenIdNum < 0) {
-      return NextResponse.json({ success: false, error: "Invalid tokenId" }, { status: 400 });
-    }
-
-    // Read contract address from scaffold-eth generated deployedContracts
-    // instead of process.env — address is set at deploy time, not build time
-    const targetNetwork = scaffoldConfig.targetNetworks[0];
-    const networkContracts = deployedContracts[targetNetwork.id as keyof typeof deployedContracts];
-
-    if (!networkContracts) {
-      console.error(`No deployed contracts found for network ${targetNetwork.id} (${targetNetwork.name})`);
-      return NextResponse.json({ success: false, error: "Server misconfiguration: unknown network" }, { status: 500 });
-    }
-
-    const contractAddress = (networkContracts as any).SoulboundNFT?.address as `0x${string}` | undefined;
+    // Use the server-side runtime var in API routes — not inlined at build time
+    const contractAddress = (process.env.CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_CONTRACT_ADDRESS) as `0x${string}` | undefined;
 
     if (!contractAddress) {
-      console.error(`SoulboundNFT not deployed on network ${targetNetwork.id} (${targetNetwork.name})`);
-      return NextResponse.json(
-        { success: false, error: "Server misconfiguration: contract not deployed" },
-        { status: 500 },
-      );
+      console.error("CONTRACT_ADDRESS is not set");
+      return NextResponse.json({ success: false, error: "Server misconfiguration" }, { status: 500 });
     }
 
     // 1. Verify NFT ownership on-chain
@@ -53,8 +35,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Server misconfiguration: missing RPC" }, { status: 500 });
     }
 
+    const targetChain = scaffoldConfig.targetNetworks[0];
+
     const publicClient = createPublicClient({
-      chain: targetNetwork,
+      chain: targetChain,
       transport: http(rpcUrl),
     });
 
