@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 
+import deployedContracts from "~~/contracts/deployedContracts";
 import scaffoldConfig from "~~/scaffold.config";
 import { decrypt, encryptWithPublicKey } from "~~/utils/crypto";
 import { getCDKeyByTokenId, storeUserEncryptedKey } from "~~/utils/db";
@@ -25,16 +26,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid tokenId" }, { status: 400 });
     }
 
-    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+    // Read contract address from scaffold-eth generated deployedContracts
+    // instead of process.env — address is set at deploy time, not build time
+    const targetNetwork = scaffoldConfig.targetNetworks[0];
+    const networkContracts = deployedContracts[targetNetwork.id as keyof typeof deployedContracts];
+
+    if (!networkContracts) {
+      console.error(`No deployed contracts found for network ${targetNetwork.id} (${targetNetwork.name})`);
+      return NextResponse.json({ success: false, error: "Server misconfiguration: unknown network" }, { status: 500 });
+    }
+
+    const contractAddress = (networkContracts as any).SoulboundNFT?.address as `0x${string}` | undefined;
+
     if (!contractAddress) {
-      console.error("NEXT_PUBLIC_CONTRACT_ADDRESS is not set");
-      return NextResponse.json({ success: false, error: "Server misconfiguration" }, { status: 500 });
+      console.error(`SoulboundNFT not deployed on network ${targetNetwork.id} (${targetNetwork.name})`);
+      return NextResponse.json(
+        { success: false, error: "Server misconfiguration: contract not deployed" },
+        { status: 500 },
+      );
     }
 
     // 1. Verify NFT ownership on-chain
+    const rpcUrl = process.env.ALCHEMY_RPC_URL;
+    if (!rpcUrl) {
+      console.error("ALCHEMY_RPC_URL is not set");
+      return NextResponse.json({ success: false, error: "Server misconfiguration: missing RPC" }, { status: 500 });
+    }
+
     const publicClient = createPublicClient({
-      chain: scaffoldConfig.targetNetworks[0],
-      transport: http(),
+      chain: targetNetwork,
+      transport: http(rpcUrl),
     });
 
     const owner = await publicClient.readContract({
@@ -55,22 +76,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "CD key not found or already redeemed" }, { status: 404 });
     }
 
-    // 3. If user-encrypted key already exists, return it WITH all required fields
-    //    (commitmentHash + cdkeyId were missing here — caused frontend crash on .startsWith)
+    // 3. If already re-encrypted for this user, return all required fields
     if (cdkeyRecord.user_encrypted_key) {
       return NextResponse.json({
         success: true,
         encryptedCDKey: cdkeyRecord.user_encrypted_key,
         commitmentHash: cdkeyRecord.commitment_hash,
-        cdkeyId: cdkeyRecord.id,
+        cdkeyId: cdkeyRecord.id.toString(),
         alreadyEncrypted: true,
       });
     }
 
-    // 4. Decrypt CDKey (only time this happens!)
+    // 4. Decrypt CDKey (only time this happens server-side)
     const plaintextCDKey = decrypt(cdkeyRecord.encrypted_cdkey);
 
-    // 5. Encrypt with user's MetaMask public key
+    // 5. Re-encrypt with user's MetaMask public key
     const encryptedForUser = encryptWithPublicKey(plaintextCDKey, userPublicKey);
 
     // 6. Store user-encrypted key in database
@@ -80,7 +100,7 @@ export async function POST(req: NextRequest) {
       success: true,
       encryptedCDKey: encryptedForUser,
       commitmentHash: cdkeyRecord.commitment_hash,
-      cdkeyId: cdkeyRecord.id,
+      cdkeyId: cdkeyRecord.id.toString(),
     });
   } catch (error: any) {
     console.error("Redeem API error:", error);
