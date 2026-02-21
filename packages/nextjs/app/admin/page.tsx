@@ -1,10 +1,9 @@
-// packages/nextjs/app/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
@@ -12,19 +11,18 @@ import { notification } from "~~/utils/scaffold-eth";
 export default function AdminPage() {
   const router = useRouter();
   const { address: connectedAddress, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
 
-  const [keys, setKeys] = useState<any[]>([]);
+  const [keys, setKeys] = useState<{ commitmentHash: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [quantity, setQuantity] = useState(10);
-  const [totalHashes, setTotalHashes] = useState<number>(0);
+  const [totalAvailable, setTotalAvailable] = useState<number>(0);
 
-  // Read contract owner
   const { data: contractOwner } = useScaffoldReadContract({
     contractName: "SoulboundNFT",
     functionName: "owner",
   });
 
-  // Redirect if connected but not the owner
   useEffect(() => {
     if (isConnected && contractOwner && connectedAddress) {
       if (contractOwner.toLowerCase() !== connectedAddress.toLowerCase()) {
@@ -38,29 +36,43 @@ export default function AdminPage() {
     isConnected && contractOwner && connectedAddress && contractOwner.toLowerCase() === connectedAddress.toLowerCase();
 
   async function generateKeys() {
+    if (!connectedAddress) return;
     setLoading(true);
     try {
+      // Time-bound message prevents replay attacks — valid for 5 minutes
+      const timestamp = Date.now();
+      const message = `Generate ${quantity} CD keys for SoulboundNFT\nTimestamp: ${timestamp}`;
+
+      const signature = await signMessageAsync({ message });
+
       const response = await fetch("/api/admin/generate-keys", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-secret": process.env.NEXT_PUBLIC_ADMIN_SECRET || "",
-        },
-        body: JSON.stringify({ quantity }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity, walletAddress: connectedAddress, signature, message, timestamp }),
       });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Server error ${response.status}: ${text.slice(0, 200)}`);
+      }
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (data.success) {
         setKeys(data.keys || []);
-        setTotalHashes(data.totalHashes);
+        setTotalAvailable(data.totalAvailable);
         notification.success(`✅ Generated ${data.count} keys!`);
       } else {
         notification.error(data.error || "Failed to generate keys");
       }
-    } catch (error) {
-      console.error(error);
-      notification.error("Failed to generate keys");
+    } catch (error: any) {
+      // User rejected the signature request in MetaMask
+      if (error?.code === 4001 || error?.message?.includes("rejected")) {
+        notification.error("Signature rejected — no keys generated");
+      } else {
+        console.error(error);
+        notification.error(error.message || "Failed to generate keys");
+      }
     } finally {
       setLoading(false);
     }
@@ -76,7 +88,6 @@ export default function AdminPage() {
     a.click();
   }
 
-  // Not connected state
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-6">
@@ -87,7 +98,6 @@ export default function AdminPage() {
     );
   }
 
-  // Connected but not owner
   if (!isOwner) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
@@ -99,7 +109,6 @@ export default function AdminPage() {
     );
   }
 
-  // Owner view
   return (
     <div className="container mx-auto p-8 max-w-6xl">
       <div className="mb-8">
@@ -111,7 +120,6 @@ export default function AdminPage() {
         <span className="text-sm font-mono">✅ Owner: {connectedAddress}</span>
       </div>
 
-      {/* Generate Card */}
       <div className="card bg-base-200 shadow-xl mb-8">
         <div className="card-body">
           <h2 className="card-title">Generate New Batch</h2>
@@ -132,7 +140,7 @@ export default function AdminPage() {
           <div className="stats shadow mt-4">
             <div className="stat">
               <div className="stat-title">Total Unredeemed Keys</div>
-              <div className="stat-value text-primary">{totalHashes}</div>
+              <div className="stat-value text-primary">{totalAvailable}</div>
               <div className="stat-desc">Available for minting</div>
             </div>
           </div>
@@ -151,7 +159,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Generated Hashes Table */}
       {keys.length > 0 && (
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body">
