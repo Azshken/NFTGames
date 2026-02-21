@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
+
 import { encrypt, generateCDKey, hashCDKey } from "~~/utils/crypto";
 
 const MAX_QUANTITY = 100;

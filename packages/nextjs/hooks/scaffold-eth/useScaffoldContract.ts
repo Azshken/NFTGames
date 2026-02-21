@@ -1,8 +1,8 @@
-import { Account, Address, Chain, Client, Transport, getContract } from "viem";
+import { Account, Address, Chain, Client, getContract, Transport } from "viem";
 import { usePublicClient } from "wagmi";
 import { GetWalletClientReturnType } from "wagmi/actions";
-import { useSelectedNetwork } from "~~/hooks/scaffold-eth";
-import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+
+import { useDeployedContractInfo, useSelectedNetwork } from "~~/hooks/scaffold-eth";
 import { AllowedChainIds } from "~~/utils/scaffold-eth";
 import { Contract, ContractName } from "~~/utils/scaffold-eth/contract";
 

@@ -1,6 +1,7 @@
 // packages/nextjs/utils/crypto.ts
-import { encrypt as ethEncrypt } from "@metamask/eth-sig-util";
 import crypto from "crypto";
+
+import { encrypt as ethEncrypt } from "@metamask/eth-sig-util";
 
 const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex"), "hex");
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { getAvailableCDKey } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {

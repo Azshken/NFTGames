@@ -1,5 +1,6 @@
 // packages/nextjs/app/api/mint/link-token/route.ts
 import { NextRequest, NextResponse } from "next/server";
+
 import { linkCDKeyToToken } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {

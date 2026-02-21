@@ -3,9 +3,9 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Abi, AbiEvent, ExtractAbiEventNames } from "abitype";
 import { BlockNumber, GetLogsParameters } from "viem";
 import { hardhat } from "viem/chains";
-import { Config, UsePublicClientReturnType, useBlockNumber, usePublicClient } from "wagmi";
-import { useSelectedNetwork } from "~~/hooks/scaffold-eth";
-import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { Config, useBlockNumber, usePublicClient, UsePublicClientReturnType } from "wagmi";
+
+import { useDeployedContractInfo, useSelectedNetwork } from "~~/hooks/scaffold-eth";
 import { AllowedChainIds } from "~~/utils/scaffold-eth";
 import { replacer } from "~~/utils/scaffold-eth/common";
 import {

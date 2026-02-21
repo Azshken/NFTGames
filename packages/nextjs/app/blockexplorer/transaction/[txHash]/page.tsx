@@ -1,7 +1,9 @@
-import TransactionComp from "../_components/TransactionComp";
 import type { NextPage } from "next";
 import { Hash } from "viem";
+
 import { isZeroAddress } from "~~/utils/scaffold-eth/common";
+
+import TransactionComp from "../_components/TransactionComp";
 
 type PageProps = {
   params: Promise<{ txHash?: Hash }>;

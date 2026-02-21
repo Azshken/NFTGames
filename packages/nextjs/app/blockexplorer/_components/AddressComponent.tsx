@@ -1,11 +1,13 @@
 "use client";
 
-import { BackButton } from "./BackButton";
-import { ContractTabs } from "./ContractTabs";
 import { Address, Balance } from "@scaffold-ui/components";
 import { Address as AddressType } from "viem";
 import { hardhat } from "viem/chains";
+
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
+
+import { BackButton } from "./BackButton";
+import { ContractTabs } from "./ContractTabs";
 
 export const AddressComponent = ({
   address,

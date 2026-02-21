@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Block,
+  createTestClient,
   Hash,
+  publicActions,
   Transaction,
   TransactionReceipt,
-  createTestClient,
-  publicActions,
   walletActions,
   webSocket,
 } from "viem";
 import { hardhat } from "viem/chains";
+
 import { decodeTransactionData } from "~~/utils/scaffold-eth";
 
 const BLOCKS_PER_PAGE = 20;

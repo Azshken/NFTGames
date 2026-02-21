@@ -39,3 +39,6 @@ Refactoring the code:
 19/02/2026
 - I've redeployed the contract on the PC I use different keystore account on PC and the laptop -> I couldn't commit/push the code from laptop without deployment.
 - Removed the merkletree safeguard it's redundant. Redeployed the contract and changed the frontend. NOTE: If you edit the .md file on github the Vercel rebuilds the app every time.
+
+20/02/2026
+- I'm reading on EIP-712 and troubleshooting why the redeem function doesn't work

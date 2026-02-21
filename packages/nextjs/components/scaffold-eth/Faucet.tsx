@@ -5,6 +5,7 @@ import { Address, AddressInput, Balance, EtherInput } from "@scaffold-ui/compone
 import { Address as AddressType, createWalletClient, http, parseEther } from "viem";
 import { hardhat } from "viem/chains";
 import { useAccount } from "wagmi";
+
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { useTargetNetwork, useTransactor } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";

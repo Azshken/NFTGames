@@ -1,8 +1,9 @@
-import { ChainWithAttributes, getAlchemyHttpUrl } from "./networks";
 import { CurrencyAmount, Token } from "@uniswap/sdk-core";
 import { Pair, Route } from "@uniswap/v2-sdk";
 import { Address, createPublicClient, fallback, http, parseAbi } from "viem";
 import { mainnet } from "viem/chains";
+
+import { ChainWithAttributes, getAlchemyHttpUrl } from "./networks";
 
 const alchemyHttpUrl = getAlchemyHttpUrl(mainnet.id);
 const rpcFallbacks = alchemyHttpUrl ? [http(alchemyHttpUrl), http()] : [http()];

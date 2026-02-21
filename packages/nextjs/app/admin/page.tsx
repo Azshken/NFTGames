@@ -5,28 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
+
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
-
-// packages/nextjs/app/admin/page.tsx
 
 export default function AdminPage() {
   const router = useRouter();

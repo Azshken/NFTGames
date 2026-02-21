@@ -1,5 +1,6 @@
 import React from "react";
-import { Toast, ToastPosition, toast } from "react-hot-toast";
+import { Toast, toast, ToastPosition } from "react-hot-toast";
+
 import { XMarkIcon } from "@heroicons/react/20/solid";
 import {
   CheckCircleIcon,

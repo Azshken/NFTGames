@@ -2,10 +2,11 @@ import { Hash, SendTransactionParameters, TransactionReceipt, WalletClient } fro
 import { Config, useWalletClient } from "wagmi";
 import { getPublicClient } from "wagmi/actions";
 import { SendTransactionMutate } from "wagmi/query";
+
 import scaffoldConfig from "~~/scaffold.config";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 import { AllowedChainIds, getBlockExplorerTxLink, notification } from "~~/utils/scaffold-eth";
-import { TransactorFuncOptions, getParsedErrorWithAllAbis } from "~~/utils/scaffold-eth/contract";
+import { getParsedErrorWithAllAbis, TransactorFuncOptions } from "~~/utils/scaffold-eth/contract";
 
 type TransactionFunc = (
   tx: (() => Promise<Hash>) | Parameters<SendTransactionMutate<Config, undefined>>[0],

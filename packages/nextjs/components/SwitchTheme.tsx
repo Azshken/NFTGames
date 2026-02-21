@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+
 import { MoonIcon, SunIcon } from "@heroicons/react/24/outline";
 
 export const SwitchTheme = ({ className }: { className?: string }) => {

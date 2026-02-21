@@ -1,12 +1,11 @@
 import { useRef, useState } from "react";
-import { NetworkOptions } from "./NetworkOptions";
-import { getAddress } from "viem";
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { useAccount, useDisconnect } from "wagmi";
+
 import {
   ArrowLeftOnRectangleIcon,
-  ArrowTopRightOnSquareIcon,
   ArrowsRightLeftIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   DocumentDuplicateIcon,
@@ -17,6 +16,8 @@ import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { useCopyToClipboard, useOutsideClick } from "~~/hooks/scaffold-eth";
 import { getTargetNetworks } from "~~/utils/scaffold-eth";
 import { isENS } from "~~/utils/scaffold-eth/common";
+
+import { NetworkOptions } from "./NetworkOptions";
 
 const BURNER_WALLET_ID = "burnerWallet";
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { notification } from "~~/utils/scaffold-eth";
 
 export function CDKeyEncryption() {

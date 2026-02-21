@@ -8,30 +8,14 @@ import type { NextPage } from "next";
 import { decodeEventLog, formatEther, parseAbiItem } from "viem";
 import { hardhat } from "viem/chains";
 import { useAccount, usePublicClient } from "wagmi";
-import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
-import { useTargetNetwork } from "~~/hooks/scaffold-eth";
-import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+
+import {
+  useDeployedContractInfo,
+  useScaffoldReadContract,
+  useScaffoldWriteContract,
+  useTargetNetwork,
+} from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
-
-// packages/nextjs/app/page.tsx
 
 const GAME_IMAGE =
   "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/bafybeiaiedjkix3n3qx6il3lwj2ye7y5fkbaytu7m4q6yxlde5uqrsgztm";

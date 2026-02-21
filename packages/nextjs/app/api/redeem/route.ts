@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
+
 import scaffoldConfig from "~~/scaffold.config";
 import { decrypt, encryptWithPublicKey } from "~~/utils/crypto";
 import { getCDKeyByTokenId, storeUserEncryptedKey } from "~~/utils/db";

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { markCDKeyRedeemed } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {

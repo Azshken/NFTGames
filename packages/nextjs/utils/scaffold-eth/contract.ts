@@ -1,17 +1,14 @@
-import { getParsedError } from "./getParsedError";
-import { AllowedChainIds } from "./networks";
-import { notification } from "./notification";
 import { MutateOptions } from "@tanstack/react-query";
 import {
   Abi,
   AbiParameter,
-  AbiParameterToPrimitiveType,
   AbiParametersToPrimitiveTypes,
+  AbiParameterToPrimitiveType,
   ExtractAbiEvent,
   ExtractAbiEventNames,
   ExtractAbiFunction,
+  type ExtractAbiFunctionNames,
 } from "abitype";
-import type { ExtractAbiFunctionNames } from "abitype";
 import type { Simplify } from "type-fest";
 import type { MergeDeepRecord } from "type-fest/source/merge-deep";
 import {
@@ -20,18 +17,23 @@ import {
   GetEventArgs,
   GetTransactionReceiptReturnType,
   GetTransactionReturnType,
+  keccak256,
   Log,
+  toHex,
   TransactionReceipt,
   WriteContractErrorType,
-  keccak256,
-  toHex,
 } from "viem";
 import { Config, UseReadContractParameters, UseWatchContractEventParameters, UseWriteContractParameters } from "wagmi";
-import { WriteContractParameters, WriteContractReturnType, simulateContract } from "wagmi/actions";
+import { simulateContract, WriteContractParameters, WriteContractReturnType } from "wagmi/actions";
 import { WriteContractVariables } from "wagmi/query";
+
 import deployedContractsData from "~~/contracts/deployedContracts";
 import externalContractsData from "~~/contracts/externalContracts";
 import scaffoldConfig from "~~/scaffold.config";
+
+import { getParsedError } from "./getParsedError";
+import { AllowedChainIds } from "./networks";
+import { notification } from "./notification";
 
 type AddExternalFlag<T> = {
   [ChainId in keyof T]: {
