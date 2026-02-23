@@ -1,32 +1,40 @@
 START_OF_DEVELOPMENT
+
 - I've had this idea of the NFT game keys in my head for longer time, however I've lacked the expertise to realize it.
-I've decided to use Claude Sonnet 4.5(now 4.6) thinking model to help me develop it (It's finally getting usable).
-Project development space on [perplexity](https://www.perplexity.ai/search/yarn-start-found-lockfile-miss-PW9.XhYZRzWs0LeW4s1XjA#0).
+  I've decided to use Claude Sonnet 4.5(now 4.6) thinking model to help me develop it (It's finally getting usable).
+  Project development space on [perplexity](https://www.perplexity.ai/search/yarn-start-found-lockfile-miss-PW9.XhYZRzWs0LeW4s1XjA#0).
 
 6/02/2026
+
 - I've set up VSCode + WSL, foundry dev environment,
 - developed the first implementation of the smart contract
 
 07/02/2026
+
 - I've set up the deployment on foundry; spun up a wallet; found a testnet with UDST&USDC (Sepolia Arbitrum); I've got some testnet ETH through Alchemy.
 
 8/02/2026
+
 - I'm migrating to desktop PC because the laptop will be slow with Scaffold-ETH-2 (react front end) running.
 - I'm creating a new Github repo NFTGames where I'll continue logging and developing the project -- I'm using foundry for smart contract development/testing. Scaffold-ETH-2 as frontend for fast iterations and testing. Vercel as a hosting service with PostgreSQL (neon) as a database.
 
 9/02/2026
+
 - I've developed the front end tested the mint functions
 
 10-15/02/2026
+
 - I was building the database and figuring out how to connect the front end with the database.
 - Created pinata account for IPFS hosting for NFT pictures and metadata.
 
 16/02/2026
 -Today I've made a functional database for CD keys and I can generate and populate the tables. Recording the time of generation, redemption and tracking is_redeemed (true/false). The CD keys in the database are hashed (for verification) and encrypted for security.
+
 - The front end is running, communicating with the backend (DB) through Vercel and neon serverless database. Previously I could mint from the front end by providing the cdkeyHash. Now I need make it that the hash is coming from the DB as well as the redemption decryption/encryption and modification of the NFT.
 
 17-18/02/2026
-Refactoring the code: 
+Refactoring the code:
+
 - Implementing merkletrees to prevent frontrunning the minting of the commitmentHashes.
 - Removing mintAndClaim function due to security issues -- doing the commitmentHash and the keyEncryption in one transaction
 - Renamed DeleteNFT to burn as it fits better to naming conventions
@@ -37,19 +45,28 @@ Refactoring the code:
 - Reinitialized the code as I'll be working on a laptop, too.
 
 19/02/2026
+
 - I've redeployed the contract on the PC I use different keystore account on PC and the laptop -> I couldn't commit/push the code from laptop without deployment.
 - Removed the merkletree safeguard it's redundant. Redeployed the contract and changed the frontend. NOTE: If you edit the .md file on github the Vercel rebuilds the app every time.
 
 20/02/2026
+
 - I'm reading on EIP-712 and troubleshooting why the redeem function doesn't work.
 
 21/02/2026
-- Implementing the fixes. Never use NEXT_PUBLIC_ for API Keys and secrets in Vercel! The NEXT_PUBLIC_ flag makes it available publicly (it's not just a naming convention).
+
+- Implementing the fixes. Never use NEXT*PUBLIC* for API Keys and secrets in Vercel! The NEXT*PUBLIC* flag makes it available publicly (it's not just a naming convention).
 - I'm slowly reducing the reliance on scaffold-eth. Using ALCHEMY_RPC_URL, CONTRACT_ADDRESS variables; trying to not rely on deploydContracts.ts
 
+22/02/2026
 
+- The whole mint-claim-reveal system works!
+- Now I need to polish the project.
 
+23/02/26
 
+- I've created the docs website on [gitbook](https://regenfund-dao.gitbook.io/nftgamekeys/).
 
 Notes:
-- This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lost. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step. 
+
+- This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lost. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
