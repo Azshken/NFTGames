@@ -18,7 +18,14 @@ When the owner of the NFT redeems the CDKey the NFT becomes untransferrable (Sou
 
 - People can mint an NFT with the CdKeyHash (claim to the CdKey) without redemption -- these NFTs can be used as gifts, or sold on secondary markets (royalty fees apply).
 - People can claim the CdKey -- the CdKey gets encrypted with the current NFT owner's publicKey and imprinted onto the NFT; NFT becomes untrasferrable (Soulbound); CdKey is deleted from the seller's database
-- People can mint an NFT with redemption (mintAndClaim) -- this makes the NFT non-transferrable (Soulbound); better user experience for people who want to use the CdKey right away -- only one TX is needed (combines the point 1&2)
+
+Note:
+Correct order of operations:
+
+1. Set ENCRYPTION_KEY in .env.local and Vercel — must be identical
+2. Generate CD keys via /admin (admin panel uses the active ENCRYPTION_KEY)
+3. Deploy contract, mint NFTs
+4. Never rotate ENCRYPTION_KEY without migrating all existing DB records first
 
 ## using 🏗 Scaffold-ETH 2
 
@@ -90,7 +97,6 @@ Run smart contract test with `yarn foundry:test`
 - Edit your smart contracts in `packages/foundry/contracts`
 - Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
 - Edit your deployment scripts in `packages/foundry/script`
-
 
 ## Documentation
 

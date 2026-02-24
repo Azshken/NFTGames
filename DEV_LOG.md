@@ -67,6 +67,12 @@ Refactoring the code:
 
 - I've created the docs website on [gitbook](https://regenfund-dao.gitbook.io/nftgamekeys/).
 
+24/02/26
+
+- Brainstormed about the project's name.
+- Revisited the database tables, making the tables more clearer and populated correctly. Remodeling the relational DB to be future proof.
+- Thinking about a solution how to implement the refund function.
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lost. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
