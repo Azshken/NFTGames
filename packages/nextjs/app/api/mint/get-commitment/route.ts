@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// packages/nextjs/app/api/mint/get-commitment/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAvailableCDKey } from "~~/utils/db";

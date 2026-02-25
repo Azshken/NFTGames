@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// packages/nextjs/app/api/admin/generate-keys/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { createPublicClient, http, parseAbi, verifyMessage } from "viem";

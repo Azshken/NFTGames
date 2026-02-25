@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -17,7 +17,13 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @notice NFTs become soulbound (non-transferable) when CD-keys are claimed
  * @notice Commitment hash verified at claim time against what was stored at mint
  */
-contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
+contract SoulboundNFT is
+    ERC721,
+    ERC2981,
+    Ownable2Step,
+    ReentrancyGuard,
+    Pausable
+{
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
@@ -49,8 +55,16 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
         address indexed paymentToken,
         bytes32 commitmentHash
     );
-    event CdKeyClaimed(uint256 indexed tokenId, address indexed owner, bytes32 commitmentHash);
-    event NFTBurned(uint256 indexed tokenId, address indexed owner, bool wasSoulbound);
+    event CdKeyClaimed(
+        uint256 indexed tokenId,
+        address indexed owner,
+        bytes32 commitmentHash
+    );
+    event NFTBurned(
+        uint256 indexed tokenId,
+        address indexed owner,
+        bool wasSoulbound
+    );
     event MintPriceUpdated(uint256 ethPrice, uint256 usdPrice);
     event MaxSupplyUpdated(uint256 oldSupply, uint256 newSupply);
     event PaymentTokensUpdated(address usdt, address usdc);
@@ -88,7 +102,9 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
 
     // ============ Metadata ============
 
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
         _requireOwned(tokenId);
         return _baseTokenURI;
     }
@@ -154,7 +170,10 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
         if (cdCommitmentHash == bytes32(0)) revert InvalidCommitmentHash();
     }
 
-    function _mintNFT(address to, bytes32 cdCommitmentHash) private returns (uint256) {
+    function _mintNFT(
+        address to,
+        bytes32 cdCommitmentHash
+    ) private returns (uint256) {
         uint256 tokenId = nextTokenId++;
         commitmentHash[tokenId] = cdCommitmentHash;
         _safeMint(to, tokenId);
@@ -177,7 +196,8 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
     ) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (isClaimed[tokenId]) revert AlreadyClaimed();
-        if (commitmentHash[tokenId] != cdKeyHash) revert InvalidCommitmentHash();
+        if (commitmentHash[tokenId] != cdKeyHash)
+            revert InvalidCommitmentHash();
 
         encryptedCdKey[tokenId] = ownerEncryptedKey;
         isClaimed[tokenId] = true;
@@ -190,13 +210,17 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
      * @notice Retrieve encrypted CD key — only callable by token owner
      * @param tokenId The token ID
      */
-    function getEncryptedCDKey(uint256 tokenId) external view returns (bytes memory) {
+    function getEncryptedCDKey(
+        uint256 tokenId
+    ) external view returns (bytes memory) {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (!isClaimed[tokenId]) revert NotClaimed();
         return encryptedCdKey[tokenId];
     }
 
-    function getCommitmentHash(uint256 tokenId) external view returns (bytes32) {
+    function getCommitmentHash(
+        uint256 tokenId
+    ) external view returns (bytes32) {
         return commitmentHash[tokenId];
     }
 
@@ -204,7 +228,9 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
         return isClaimed[tokenId];
     }
 
-    function getClaimTimestamp(uint256 tokenId) external view returns (uint256) {
+    function getClaimTimestamp(
+        uint256 tokenId
+    ) external view returns (uint256) {
         return claimTimestamp[tokenId];
     }
 
@@ -245,34 +271,49 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
 
     // ============ Royalty ============
 
-    function setRoyaltyInfo(address receiver, uint96 feeNumerator) external onlyOwner {
+    function setRoyaltyInfo(
+        address receiver,
+        uint96 feeNumerator
+    ) external onlyOwner {
         if (receiver == address(0)) revert ZeroAddress();
         require(feeNumerator <= 1000, "Royalty too high (max 10%)");
         _setDefaultRoyalty(receiver, feeNumerator);
         emit RoyaltyUpdated(receiver, feeNumerator);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, ERC2981) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
     // ============ Admin ============
 
-    function setMintPrices(uint256 ethPrice, uint256 usdPrice) external onlyOwner {
+    function setMintPrices(
+        uint256 ethPrice,
+        uint256 usdPrice
+    ) external onlyOwner {
         mintPriceETH = uint128(ethPrice);
         mintPriceUSD = uint128(usdPrice);
         emit MintPriceUpdated(ethPrice, usdPrice);
     }
 
-    function setPaymentTokens(address usdtAddress, address usdcAddress) external onlyOwner {
-        if (usdtAddress == address(0) || usdcAddress == address(0)) revert ZeroAddress();
+    function setPaymentTokens(
+        address usdtAddress,
+        address usdcAddress
+    ) external onlyOwner {
+        if (usdtAddress == address(0) || usdcAddress == address(0))
+            revert ZeroAddress();
         USDT = IERC20(usdtAddress);
         USDC = IERC20(usdcAddress);
         emit PaymentTokensUpdated(usdtAddress, usdcAddress);
     }
 
     function setMaxSupply(uint256 newMaxSupply) external onlyOwner {
-        require(newMaxSupply >= nextTokenId - 1, "Cannot set below current supply");
+        require(
+            newMaxSupply >= nextTokenId - 1,
+            "Cannot set below current supply"
+        );
         uint256 oldSupply = maxSupply;
         maxSupply = uint64(newMaxSupply);
         emit MaxSupplyUpdated(oldSupply, newMaxSupply);
@@ -282,11 +323,18 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
         return nextTokenId - 1 - _burnedCount;
     }
 
-    function pause() external onlyOwner { _pause(); }
-    function unpause() external onlyOwner { _unpause(); }
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
 
     function withdrawETH() external onlyOwner nonReentrant {
-        (bool success, ) = payable(owner()).call{value: address(this).balance}("");
+        (bool success, ) = payable(owner()).call{value: address(this).balance}(
+            ""
+        );
         if (!success) revert WithdrawalFailed();
     }
 
@@ -310,7 +358,9 @@ contract SoulboundNFT is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausabl
         if (usdcBalance > 0) USDC.safeTransfer(owner(), usdcBalance);
     }
 
-    function emergencyWithdrawToken(address token) external onlyOwner nonReentrant {
+    function emergencyWithdrawToken(
+        address token
+    ) external onlyOwner nonReentrant {
         if (token == address(0)) revert ZeroAddress();
         IERC20 t = IERC20(token);
         t.safeTransfer(owner(), t.balanceOf(address(this)));

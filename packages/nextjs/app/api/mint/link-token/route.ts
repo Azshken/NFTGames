@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // packages/nextjs/app/api/mint/link-token/route.ts
 import { NextRequest, NextResponse } from "next/server";
 

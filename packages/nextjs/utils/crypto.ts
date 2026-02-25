@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 // packages/nextjs/utils/crypto.ts
 import crypto from "crypto";
 

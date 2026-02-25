@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// packages/nextjs/app/api/redeem/confirm/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 import { markCDKeyRedeemed } from "~~/utils/db";

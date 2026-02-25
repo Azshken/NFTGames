@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// packages/nextjs/app/api/redeem/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 
