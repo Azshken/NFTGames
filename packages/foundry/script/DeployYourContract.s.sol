@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import "../contracts/SoulboundNFT.sol";
+import "../contracts/SoulKey.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
@@ -81,7 +81,7 @@ contract DeployYourContract is Script {
         }
 
         // Deploy the SoulboundNFT contract
-        SoulboundNFT soulboundContract = new SoulboundNFT(
+        SoulKey soulboundContract = new SoulKey(
             usdtAddress,
             usdcAddress,
             "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/QmbPeDRqJALuDNPzb2YdV24duNEXJWiYyvKGbZWkMpENws" // ← Your metadata CID

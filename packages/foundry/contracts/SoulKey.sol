@@ -11,19 +11,13 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
- * @title SoulboundNFT - Game CD-Key Distribution via NFTs
+ * @title SoulKey - Game CD-Key Distribution via NFTs
  * @dev NFT with ERC20 payments, 5% royalties, and encrypted CD-key storage
  * @notice Supports ETH, USDT, and USDC payments
  * @notice NFTs become soulbound (non-transferable) when CD-keys are claimed
  * @notice Commitment hash verified at claim time against what was stored at mint
  */
-contract SoulboundNFT is
-    ERC721,
-    ERC2981,
-    Ownable2Step,
-    ReentrancyGuard,
-    Pausable
-{
+contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
     using Strings for uint256;
 
