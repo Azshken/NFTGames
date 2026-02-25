@@ -1,33 +1,35 @@
-<h1 align="center"> SoulKey </h1>
+# SoulKey 🗝️
 
-Video game keys represented with NFTs, proving the ownership of the video game. People can connect to the website with their crypto wallet and mint an NFT that represents a claim on video game cdKey.
+> NFT-based game key distribution — own your games, provably.
 
-### Benefits
+Live demo (Sepolia testnet): https://soulkey.vercel.app/
 
-- Can migrate video games between platforms. NFTs prove that the user bought the game legitimatelly.
-- Cannot trade already used/revealed cdKey (Soulbound).
-- Revenue shared with developers from the secondary sales (royalty fee).
-- People own their games!
-- Whole game library in one place.
+## What It Does
 
-### How it works
+SoulKey lets game publishers distribute CD keys as NFTs. Players mint an NFT
+that represents a cryptographic claim to a game key. When they redeem it, the
+key is encrypted directly to their wallet — and the NFT becomes soulbound
+(non-transferable) forever.
 
-When the owner of the NFT redeems the cdKey the NFT becomes untransferrable (Soulbound) and the cdKey is deleted from the seller's database. The cdKey is encrypted with the NFT owner's publicKey, revealable any time to the owner without exposing the plainTextCdKey.
+No plain text keys are ever exposed. Ever.
 
-### The flow
+## Why It's Different
 
-- People can mint an NFT with the hash of the cdKey (claim to the cdKey) -- these NFTs can be used as gifts, or sold on secondary markets (royalty fees apply).
-- People can claim the cdKey -- the cdKey gets encrypted with the current NFT owner's publicKey and imprinted onto the NFT; NFT becomes untrasferrable (Soulbound); cdKey is deleted from the seller's database
-- Plain text cdKey never gets exposed. It has only the encrypted and hashed versions of the cdKey in the database. It gets decrypted only once when the key is claimed and encrypted right away with the NFT owner's publicKey.
+- **True ownership** — your game lives in your wallet, not a platform account
+- **Platform-portable** — NFT proves legitimate purchase across any storefront
+- **Tradeable before redemption** — gift or sell unclaimed keys on secondary markets
+- **Soulbound after redemption** — claimed keys can't be stolen or resold
+- **Developer royalties** — 5% on every secondary sale via ERC-2981
 
-Note:
-Correct order of operations:
+## How It Works
 
-1. Set ENCRYPTION_KEY in .env.local and Vercel — must be identical
-2. Generate CD keys via /admin (admin panel uses the active ENCRYPTION_KEY)
-3. Deploy contract, mint NFTs
-4. Never rotate ENCRYPTION_KEY without migrating all existing DB records first
+1. Publisher generates CD keys — stored encrypted in PostgreSQL, never in plain text
+2. Player mints NFT with a `commitmentHash` (cryptographic claim to a specific key)
+3. Player claims the key — it gets encrypted with their MetaMask public key
+   and written on-chain; plain text key is deleted from the database
+4. NFT becomes soulbound — transfers are permanently blocked at the contract level
 
+Mint NFT (commitmentHash) → Claim Key (encrypt to wallet) → Soulbound ✓
 
 ## Tech Stack
 
