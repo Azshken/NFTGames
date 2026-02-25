@@ -66,10 +66,25 @@ yarn deploy
 # 5. Start frontend (new terminal)
 yarn start
 ```
-To know more about its features, check out our [website](https://scaffoldeth.io).
+Visit: http://localhost:3000
+Environment Variables
+```
+ENCRYPTION_KEY=        # AES-256 key — must match Vercel deployment exactly
+DATABASE_URL=          # Neon PostgreSQL connection string
+```
+>⚠️ Never rotate ENCRYPTION_KEY without migrating all existing DB records first.
+>Generate CD keys via /admin only after setting this variable.
 
-## Contributing to Scaffold-ETH 2
+Testing
+```
+yarn foundry:test
+# or
+forge test --match-path test/SoulKey.t.sol -vv
+```
+License
 
-We welcome contributions to Scaffold-ETH 2!
+AGPL-3.0-only — see [LICENSE](https://github.com/Azshken/SoulKey?tab=AGPL-3.0-1-ov-file)
+
+Built with [Scaffold-ETH 2](https://scaffoldeth.io)
 
 Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
