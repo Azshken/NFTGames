@@ -1,23 +1,24 @@
-<h1 align="center"> NFTGames </h1>
+<h1 align="center"> SoulKey </h1>
 
-Video game keys represented with NFTs, proving the ownership of the video game. People can connect to the website with their crypto wallet and mint an NFT that represents a claim on video game CDKey.
+Video game keys represented with NFTs, proving the ownership of the video game. People can connect to the website with their crypto wallet and mint an NFT that represents a claim on video game cdKey.
 
 ### Benefits
 
 - Can migrate video games between platforms. NFTs prove that the user bought the game legitimatelly.
-- Cannot trade already used/revealed CdKey (Soulbound).
+- Cannot trade already used/revealed cdKey (Soulbound).
 - Revenue shared with developers from the secondary sales (royalty fee).
 - People own their games!
 - Whole game library in one place.
 
 ### How it works
 
-When the owner of the NFT redeems the CDKey the NFT becomes untransferrable (Soulbound) and the CDKey is deleted from the seller's database. The CDKey is encrypted with the NFT owner's publicKey, revealable any time to the owner without exposing the plainTextCdKey.
+When the owner of the NFT redeems the cdKey the NFT becomes untransferrable (Soulbound) and the cdKey is deleted from the seller's database. The cdKey is encrypted with the NFT owner's publicKey, revealable any time to the owner without exposing the plainTextCdKey.
 
 ### The flow
 
-- People can mint an NFT with the CdKeyHash (claim to the CdKey) without redemption -- these NFTs can be used as gifts, or sold on secondary markets (royalty fees apply).
-- People can claim the CdKey -- the CdKey gets encrypted with the current NFT owner's publicKey and imprinted onto the NFT; NFT becomes untrasferrable (Soulbound); CdKey is deleted from the seller's database
+- People can mint an NFT with the hash of the cdKey (claim to the cdKey) -- these NFTs can be used as gifts, or sold on secondary markets (royalty fees apply).
+- People can claim the cdKey -- the cdKey gets encrypted with the current NFT owner's publicKey and imprinted onto the NFT; NFT becomes untrasferrable (Soulbound); cdKey is deleted from the seller's database
+- Plain text cdKey never gets exposed. It has only the encrypted and hashed versions of the cdKey in the database. It gets decrypted only once when the key is claimed and encrypted right away with the NFT owner's publicKey.
 
 Note:
 Correct order of operations:
