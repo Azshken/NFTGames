@@ -7,7 +7,7 @@ START_OF_DEVELOPMENT
 6/02/2026
 
 - I've set up VSCode + WSL, foundry dev environment,
-- developed the first implementation of the smart contract
+- developed the first implementation of the smart contract.
 
 07/02/2026
 
@@ -20,7 +20,7 @@ START_OF_DEVELOPMENT
 
 9/02/2026
 
-- I've developed the front end tested the mint functions
+- I've developed the front end tested the mint functions.
 
 10-15/02/2026
 
@@ -69,25 +69,23 @@ Refactoring the code:
 
 24/02/26
 
-- Brainstormed about the project's name.
+- Brainstormed about the project's name. It's SoulKey from now on. I've began renaming it. The full rename will be at redeployment of the contract.
 - Revisited the database tables, making the tables more clearer and populated correctly. Remodeling the relational DB to be future proof.
+- Added new tables for the future batches, products, refunds.
 - Thinking about a solution how to implement the refund function.
 
 25/02/26
 
-- Finished the new database Schema
-- Added new tables for the future batches, products, refunds
-- Brainstormed about how to share my project with people
+- Finished the new database Schema. I've learned a critical database design practice for blockchains (Article).
+- Worked on the refund function (I can't implement the new schema without the refund function).
+- Refund function will be a separate contract (Article).
+- Brainstormed about how to share my project with people.
+- Made my first post on X.
 
 26/02/26
 
-- Worked on the refund function
-- Made the first post on X
-
-27/02/26
-
-- First article about the schema design for blockchain apps
-- published on mirror.xyz and X post
+- Wrote my first article about the schema design for blockchain apps and the bugs that led me to the current design. Published on mirror.xyz and X post.
+- I'm conflicted about the use of AI to help me write and polish the article -- it looks more profesional and polished, but it's not fully written by me.
  
 Notes:
 
