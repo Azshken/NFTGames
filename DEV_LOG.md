@@ -73,6 +73,22 @@ Refactoring the code:
 - Revisited the database tables, making the tables more clearer and populated correctly. Remodeling the relational DB to be future proof.
 - Thinking about a solution how to implement the refund function.
 
+25/02/26
+
+- Finished the new database Schema
+- Added new tables for the future batches, products, refunds
+- Brainstormed about how to share my project with people
+
+26/02/26
+
+- Worked on the refund function
+- Made the first post on X
+
+27/02/26
+
+- First article about the schema design for blockchain apps
+- published on mirror.xyz and X post
+ 
 Notes:
 
-- This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lost. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
+- This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
