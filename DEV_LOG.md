@@ -86,7 +86,14 @@ Refactoring the code:
 
 - Wrote my first article about the schema design for blockchain apps and the bugs that led me to the current design. Published on mirror.xyz and X post.
 - I'm conflicted about the use of AI to help me write and polish the article -- it looks more profesional and polished, but it's not fully written by me.
- 
+
+27/02/26
+
+- Worked on the refund function implementation.
+- There are more issues than I thought, tomorrow I try to fix them.
+
+28/02/26
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.

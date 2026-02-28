@@ -10,12 +10,27 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+interface ISoulKeyVault {
+    function collectPayment(
+        uint256 tokenId,
+        address payer,
+        address payToken,
+        uint256 amount
+    ) external payable;
+
+    function releaseReserveOnClaim(uint256 tokenId, address claimant) external;
+
+    function getUSDT() external view returns (address);
+
+    function getUSDC() external view returns (address);
+}
+
 /**
- * @title SoulKey - Game CD-Key Distribution via NFTs
- * @dev NFT with ERC20 payments, 5% royalties, and encrypted CD-key storage
- * @notice Supports ETH, USDT, and USDC payments
- * @notice NFTs become soulbound (non-transferable) when CD-keys are claimed
- * @notice Commitment hash verified at claim time against what was stored at mint
+ * @title SoulKey - Per-Game CD-Key NFT Contract
+ * @notice Deploy one instance per game. Payments flow directly to SoulKeyVault.
+ *         This contract holds no funds. SoulKeyVault is the sole financial authority.
+ * @dev tokenURI returns baseURI + tokenId so each encrypted CD-key NFT has
+ *      unique metadata served by the backend.
  */
 contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -23,23 +38,20 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
 
     // ============ State Variables ============
 
-    // Prices — Chainlink feed integration planned for production
     uint128 public mintPriceETH = 0.01 ether;
     uint128 public mintPriceUSD = 20e6;
-    uint64 public maxSupply = 10;
+    uint64 public maxSupply;
     uint64 private nextTokenId = 1;
+    uint64 private _burnedCount;
 
     string private _baseTokenURI;
 
-    IERC20 public USDT;
-    IERC20 public USDC;
+    /// @notice Immutable reference to the master vault
+    ISoulKeyVault public immutable vault;
 
     mapping(uint256 => bytes32) private commitmentHash;
     mapping(uint256 => bytes) private encryptedCdKey;
-    mapping(uint256 => bool) private isClaimed;
-    mapping(uint256 => uint256) private claimTimestamp;
-
-    uint256 private _burnedCount;
+    mapping(uint256 => uint256) private claimTimestamp; // 0 = unclaimed
 
     // ============ Events ============
 
@@ -61,46 +73,66 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     );
     event MintPriceUpdated(uint256 ethPrice, uint256 usdPrice);
     event MaxSupplyUpdated(uint256 oldSupply, uint256 newSupply);
-    event PaymentTokensUpdated(address usdt, address usdc);
     event RoyaltyUpdated(address receiver, uint96 feeNumerator);
     event BaseURIUpdated(string newBaseURI);
 
     // ============ Errors ============
 
-    error InsufficientPayment();
+    error InvalidETHAmount();
     error MaxSupplyReached();
     error NotTokenOwner();
+    error NotVault();
     error AlreadyClaimed();
     error NotClaimed();
     error CannotTransferClaimed();
-    error WithdrawalFailed();
     error ZeroAddress();
     error InvalidCommitmentHash();
+    error InvalidSupply();
+
+    // ============ Modifiers ============
+
+    modifier onlyVault() {
+        if (msg.sender != address(vault)) revert NotVault();
+        _;
+    }
 
     // ============ Constructor ============
 
+    /**
+     * @param vaultAddress  Deployed SoulKeyVault address
+     * @param baseTokenURI  Base metadata URI — tokenId appended per token
+     * @param gameName      ERC721 name (e.g. "Fallout")
+     * @param gameSymbol    ERC721 symbol (e.g. "FALL")
+     * @param supply        Maximum mintable supply for this game — must be > 0
+     */
     constructor(
-        address usdtAddress,
-        address usdcAddress,
-        string memory baseTokenURI
-    ) ERC721("Fallout", "FALL") Ownable(msg.sender) {
-        if (usdtAddress == address(0) || usdcAddress == address(0))
-            revert ZeroAddress();
-
-        USDT = IERC20(usdtAddress);
-        USDC = IERC20(usdcAddress);
+        address vaultAddress,
+        string memory baseTokenURI,
+        string memory gameName,
+        string memory gameSymbol,
+        uint64 supply
+    ) ERC721(gameName, gameSymbol) Ownable(msg.sender) {
+        if (vaultAddress == address(0)) revert ZeroAddress();
+        if (supply == 0) revert InvalidSupply();
+        vault = ISoulKeyVault(vaultAddress);
         _baseTokenURI = baseTokenURI;
-
-        _setDefaultRoyalty(address(this), 500);
+        maxSupply = supply;
+        // Royalties centralised in the vault
+        _setDefaultRoyalty(vaultAddress, 500);
     }
 
     // ============ Metadata ============
 
+    /**
+     * @notice Returns a URI unique to each token: baseURI + tokenId.
+     * @dev Each token represents a distinct encrypted CD key. The backend
+     *      serves per-tokenId JSON at this URI.
+     */
     function tokenURI(
         uint256 tokenId
     ) public view override returns (string memory) {
         _requireOwned(tokenId);
-        return _baseTokenURI;
+        return string.concat(_baseTokenURI, tokenId.toString());
     }
 
     function setBaseURI(string memory newBaseURI) external onlyOwner {
@@ -111,55 +143,60 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     // ============ Minting ============
 
     /**
-     * @notice Mint NFT with ETH
-     * @param cdCommitmentHash Hash of the CD key reserved from backend
+     * @notice Mint with ETH. Requires msg.value == mintPriceETH exactly.
+     * @dev The frontend reads mintPriceETH and constructs the transaction with
+     *      the exact value. No excess-refund path exists, eliminating the
+     *      smart-contract-receiver griefing vector entirely.
      */
     function mintWithETH(
         bytes32 cdCommitmentHash
     ) external payable whenNotPaused nonReentrant {
-        if (msg.value < mintPriceETH) revert InsufficientPayment();
+        if (msg.value != mintPriceETH) revert InvalidETHAmount();
         _validateCommitment(cdCommitmentHash);
         uint256 tokenId = _mintNFT(msg.sender, cdCommitmentHash);
-
-        if (msg.value > mintPriceETH) {
-            (bool refundSuccess, ) = payable(msg.sender).call{
-                value: msg.value - mintPriceETH
-            }("");
-            require(refundSuccess, "Refund failed");
-        }
-
+        vault.collectPayment{value: mintPriceETH}(
+            tokenId,
+            msg.sender,
+            address(0),
+            mintPriceETH
+        );
         emit NFTMinted(tokenId, msg.sender, address(0), cdCommitmentHash);
     }
 
     /**
-     * @notice Mint NFT with USDT
-     * @param cdCommitmentHash Hash of the CD key reserved from backend
+     * @notice Mint with USDT. Tokens pulled directly from user into the vault.
+     * @dev Token address is read from vault at call time — stays in sync with
+     *      any vault-side update without redeploying SoulKey.
      */
     function mintWithUSDT(
         bytes32 cdCommitmentHash
     ) external whenNotPaused nonReentrant {
         _validateCommitment(cdCommitmentHash);
-        USDT.safeTransferFrom(msg.sender, address(this), mintPriceUSD);
+        IERC20 usdt = IERC20(vault.getUSDT());
+        usdt.safeTransferFrom(msg.sender, address(vault), mintPriceUSD);
         uint256 tokenId = _mintNFT(msg.sender, cdCommitmentHash);
-
-        emit NFTMinted(tokenId, msg.sender, address(USDT), cdCommitmentHash);
+        vault.collectPayment(tokenId, msg.sender, address(usdt), mintPriceUSD);
+        emit NFTMinted(tokenId, msg.sender, address(usdt), cdCommitmentHash);
     }
 
     /**
-     * @notice Mint NFT with USDC
-     * @param cdCommitmentHash Hash of the CD key reserved from backend
+     * @notice Mint with USDC. Tokens pulled directly from user into the vault.
      */
     function mintWithUSDC(
         bytes32 cdCommitmentHash
     ) external whenNotPaused nonReentrant {
         _validateCommitment(cdCommitmentHash);
-        USDC.safeTransferFrom(msg.sender, address(this), mintPriceUSD);
+        IERC20 usdc = IERC20(vault.getUSDC());
+        usdc.safeTransferFrom(msg.sender, address(vault), mintPriceUSD);
         uint256 tokenId = _mintNFT(msg.sender, cdCommitmentHash);
-
-        emit NFTMinted(tokenId, msg.sender, address(USDC), cdCommitmentHash);
+        vault.collectPayment(tokenId, msg.sender, address(usdc), mintPriceUSD);
+        emit NFTMinted(tokenId, msg.sender, address(usdc), cdCommitmentHash);
     }
 
     function _validateCommitment(bytes32 cdCommitmentHash) private view {
+        // nextTokenId starts at 1 and increments after mint.
+        // When nextTokenId == maxSupply the last token is still mintable.
+        // When nextTokenId > maxSupply the supply is exhausted.
         if (nextTokenId > maxSupply) revert MaxSupplyReached();
         if (cdCommitmentHash == bytes32(0)) revert InvalidCommitmentHash();
     }
@@ -177,11 +214,11 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     // ============ CD-Key Claim ============
 
     /**
-     * @notice Claim CD key and make NFT soulbound
-     * @dev cdKeyHash must match commitment stored at mint time
-     * @param tokenId The token ID
-     * @param cdKeyHash Must match the commitmentHash stored at mint
-     * @param ownerEncryptedKey CD key encrypted with owner's MetaMask public key
+     * @notice Claim the CD key, make the NFT soulbound, and release the refund
+     *         reserve in the vault atomically.
+     * @dev Passes msg.sender to the vault which cross-checks it against ownerOf.
+     *      This prevents a buggy game contract from releasing reserves without
+     *      a genuine claim having occurred.
      */
     function claimCdKey(
         uint256 tokenId,
@@ -189,26 +226,24 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         bytes calldata ownerEncryptedKey
     ) external {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        if (isClaimed[tokenId]) revert AlreadyClaimed();
+        if (claimTimestamp[tokenId] != 0) revert AlreadyClaimed();
         if (commitmentHash[tokenId] != cdKeyHash)
             revert InvalidCommitmentHash();
 
         encryptedCdKey[tokenId] = ownerEncryptedKey;
-        isClaimed[tokenId] = true;
         claimTimestamp[tokenId] = block.timestamp;
+
+        // Vault verifies claimant == ownerOf(tokenId) before releasing reserve
+        vault.releaseReserveOnClaim(tokenId, msg.sender);
 
         emit CdKeyClaimed(tokenId, msg.sender, cdKeyHash);
     }
 
-    /**
-     * @notice Retrieve encrypted CD key — only callable by token owner
-     * @param tokenId The token ID
-     */
     function getEncryptedCDKey(
         uint256 tokenId
     ) external view returns (bytes memory) {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        if (!isClaimed[tokenId]) revert NotClaimed();
+        if (claimTimestamp[tokenId] == 0) revert NotClaimed();
         return encryptedCdKey[tokenId];
     }
 
@@ -216,10 +251,6 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         uint256 tokenId
     ) external view returns (bytes32) {
         return commitmentHash[tokenId];
-    }
-
-    function isClaimedToken(uint256 tokenId) external view returns (bool) {
-        return isClaimed[tokenId];
     }
 
     function getClaimTimestamp(
@@ -231,22 +262,38 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     // ============ Burn ============
 
     /**
-     * @notice Burn NFT for game library management
-     * @dev Soulbound NFTs are intentionally burnable
+     * @notice Called exclusively by the vault inside processRefund().
+     *         Burns the NFT atomically within the same refund transaction.
+     * @dev onlyVault ensures this cannot be triggered by anyone other than
+     *      the trusted SoulKeyVault. The vault resolves the owner before calling
+     *      this, so we record it in the event for the backend.
      */
-    function burn(uint256 tokenId) external {
-        if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-
-        bool wasSoulbound = isClaimed[tokenId];
+    function burnByVault(uint256 tokenId) external onlyVault {
+        address tokenOwner = ownerOf(tokenId);
+        bool wasSoulbound = claimTimestamp[tokenId] != 0;
         _burnedCount++;
-
         _burn(tokenId);
         delete commitmentHash[tokenId];
         delete encryptedCdKey[tokenId];
-        delete isClaimed[tokenId];
         delete claimTimestamp[tokenId];
+        emit NFTBurned(tokenId, tokenOwner, wasSoulbound);
+    }
 
-        emit NFTBurned(tokenId, msg.sender, wasSoulbound);
+    /**
+     * @notice User-initiated burn, restricted to claimed (soulbound) tokens.
+     * @dev Unclaimed tokens must go through processRefund() to ensure the vault
+     *      settles the payment. Burning an unclaimed token directly would leave
+     *      funds locked in the vault reserve until releaseReserveOnExpiry.
+     */
+    function burn(uint256 tokenId) external {
+        if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        if (claimTimestamp[tokenId] == 0) revert NotClaimed();
+        _burnedCount++;
+        _burn(tokenId);
+        delete commitmentHash[tokenId];
+        delete encryptedCdKey[tokenId];
+        delete claimTimestamp[tokenId];
+        emit NFTBurned(tokenId, msg.sender, true);
     }
 
     // ============ Transfer Override ============
@@ -258,9 +305,24 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     ) internal override returns (address) {
         address from = _ownerOf(tokenId);
         if (from != address(0) && to != address(0)) {
-            if (isClaimed[tokenId]) revert CannotTransferClaimed();
+            if (claimTimestamp[tokenId] != 0) revert CannotTransferClaimed();
         }
         return super._update(to, tokenId, auth);
+    }
+
+    // ============ Emergency ERC-20 Recovery ============
+
+    /**
+     * @notice Recover ERC-20 tokens accidentally sent to this contract.
+     * @dev This contract intentionally holds no tokens. No reserve check needed
+     *      since SoulKey never holds managed tokens — all payments go to the vault.
+     */
+    function recoverERC20(address token) external onlyOwner {
+        if (token == address(0)) revert ZeroAddress();
+        IERC20 t = IERC20(token);
+        uint256 balance = t.balanceOf(address(this));
+        require(balance > 0, "Nothing to recover");
+        t.safeTransfer(owner(), balance);
     }
 
     // ============ Royalty ============
@@ -292,17 +354,6 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         emit MintPriceUpdated(ethPrice, usdPrice);
     }
 
-    function setPaymentTokens(
-        address usdtAddress,
-        address usdcAddress
-    ) external onlyOwner {
-        if (usdtAddress == address(0) || usdcAddress == address(0))
-            revert ZeroAddress();
-        USDT = IERC20(usdtAddress);
-        USDC = IERC20(usdcAddress);
-        emit PaymentTokensUpdated(usdtAddress, usdcAddress);
-    }
-
     function setMaxSupply(uint256 newMaxSupply) external onlyOwner {
         require(
             newMaxSupply >= nextTokenId - 1,
@@ -324,41 +375,4 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     function unpause() external onlyOwner {
         _unpause();
     }
-
-    function withdrawETH() external onlyOwner nonReentrant {
-        (bool success, ) = payable(owner()).call{value: address(this).balance}(
-            ""
-        );
-        if (!success) revert WithdrawalFailed();
-    }
-
-    function withdrawUSDT() external onlyOwner nonReentrant {
-        USDT.safeTransfer(owner(), USDT.balanceOf(address(this)));
-    }
-
-    function withdrawUSDC() external onlyOwner nonReentrant {
-        USDC.safeTransfer(owner(), USDC.balanceOf(address(this)));
-    }
-
-    function withdrawAll() external onlyOwner nonReentrant {
-        uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0) {
-            (bool success, ) = payable(owner()).call{value: ethBalance}("");
-            if (!success) revert WithdrawalFailed();
-        }
-        uint256 usdtBalance = USDT.balanceOf(address(this));
-        if (usdtBalance > 0) USDT.safeTransfer(owner(), usdtBalance);
-        uint256 usdcBalance = USDC.balanceOf(address(this));
-        if (usdcBalance > 0) USDC.safeTransfer(owner(), usdcBalance);
-    }
-
-    function emergencyWithdrawToken(
-        address token
-    ) external onlyOwner nonReentrant {
-        if (token == address(0)) revert ZeroAddress();
-        IERC20 t = IERC20(token);
-        t.safeTransfer(owner(), t.balanceOf(address(this)));
-    }
-
-    receive() external payable {}
 }
