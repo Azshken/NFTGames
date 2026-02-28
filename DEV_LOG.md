@@ -93,6 +93,8 @@ Refactoring the code:
 - There are more issues than I thought, tomorrow I try to fix them.
 
 28/02/26
+- I've finished the refund contract now MasterKey contract.
+- I'm updating the documentation webpage.
 
 Notes:
 
