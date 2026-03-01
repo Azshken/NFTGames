@@ -10,7 +10,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-interface ISoulKeyVault {
+interface IMasterKeyVault {
     function collectPayment(
         uint256 tokenId,
         address payer,
@@ -27,8 +27,8 @@ interface ISoulKeyVault {
 
 /**
  * @title SoulKey - Per-Game CD-Key NFT Contract
- * @notice Deploy one instance per game. Payments flow directly to SoulKeyVault.
- *         This contract holds no funds. SoulKeyVault is the sole financial authority.
+ * @notice Deploy one instance per game. Payments flow directly to MasterKeyVault.
+ *         This contract holds no funds. MasterKeyVault is the sole financial authority.
  * @dev tokenURI returns baseURI + tokenId so each encrypted CD-key NFT has
  *      unique metadata served by the backend.
  */
@@ -47,7 +47,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     string private _baseTokenURI;
 
     /// @notice Immutable reference to the master vault
-    ISoulKeyVault public immutable vault;
+    IMasterKeyVault public immutable vault;
 
     mapping(uint256 => bytes32) private commitmentHash;
     mapping(uint256 => bytes) private encryptedCdKey;
@@ -71,8 +71,8 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         address indexed owner,
         bool wasSoulbound
     );
-    event MintPriceUpdated(uint256 ethPrice, uint256 usdPrice);
-    event MaxSupplyUpdated(uint256 oldSupply, uint256 newSupply);
+    event MintPriceUpdated(uint128 ethPrice, uint128 usdPrice);
+    event MaxSupplyUpdated(uint64 oldSupply, uint64 newSupply);
     event RoyaltyUpdated(address receiver, uint96 feeNumerator);
     event BaseURIUpdated(string newBaseURI);
 
@@ -99,7 +99,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     // ============ Constructor ============
 
     /**
-     * @param vaultAddress  Deployed SoulKeyVault address
+     * @param vaultAddress  Deployed MasterKeyVault address
      * @param baseTokenURI  Base metadata URI — tokenId appended per token
      * @param gameName      ERC721 name (e.g. "Fallout")
      * @param gameSymbol    ERC721 symbol (e.g. "FALL")
@@ -114,7 +114,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     ) ERC721(gameName, gameSymbol) Ownable(msg.sender) {
         if (vaultAddress == address(0)) revert ZeroAddress();
         if (supply == 0) revert InvalidSupply();
-        vault = ISoulKeyVault(vaultAddress);
+        vault = IMasterKeyVault(vaultAddress);
         _baseTokenURI = baseTokenURI;
         maxSupply = supply;
         // Royalties centralised in the vault
@@ -215,7 +215,10 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
 
     /**
      * @notice Claim the CD key, make the NFT soulbound, and release the refund
-     *         reserve in the vault atomically.
+     *         reserve in the vault atomically. getEncryptedCDKey enforces
+     *         ownerOf(tokenId), but the CD key can be directly read from contract
+     *         storage eth_getStorageAt. CD key is encrypted with the ownerOf(tokenId)
+     *         public address. The function is for better UEx and the CD key is safe.
      * @dev Passes msg.sender to the vault which cross-checks it against ownerOf.
      *      This prevents a buggy game contract from releasing reserves without
      *      a genuine claim having occurred.
@@ -224,7 +227,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         uint256 tokenId,
         bytes32 cdKeyHash,
         bytes calldata ownerEncryptedKey
-    ) external {
+    ) external nonReentrant {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (claimTimestamp[tokenId] != 0) revert AlreadyClaimed();
         if (commitmentHash[tokenId] != cdKeyHash)
@@ -265,7 +268,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
      * @notice Called exclusively by the vault inside processRefund().
      *         Burns the NFT atomically within the same refund transaction.
      * @dev onlyVault ensures this cannot be triggered by anyone other than
-     *      the trusted SoulKeyVault. The vault resolves the owner before calling
+     *      the trusted MasterKeyVault. The vault resolves the owner before calling
      *      this, so we record it in the event for the backend.
      */
     function burnByVault(uint256 tokenId) external onlyVault {
@@ -346,21 +349,21 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     // ============ Admin ============
 
     function setMintPrices(
-        uint256 ethPrice,
-        uint256 usdPrice
+        uint128 ethPrice,
+        uint128 usdPrice
     ) external onlyOwner {
-        mintPriceETH = uint128(ethPrice);
-        mintPriceUSD = uint128(usdPrice);
+        mintPriceETH = ethPrice;
+        mintPriceUSD = usdPrice;
         emit MintPriceUpdated(ethPrice, usdPrice);
     }
 
-    function setMaxSupply(uint256 newMaxSupply) external onlyOwner {
+    function setMaxSupply(uint64 newMaxSupply) external onlyOwner {
         require(
             newMaxSupply >= nextTokenId - 1,
             "Cannot set below current supply"
         );
-        uint256 oldSupply = maxSupply;
-        maxSupply = uint64(newMaxSupply);
+        uint64 oldSupply = maxSupply;
+        maxSupply = newMaxSupply;
         emit MaxSupplyUpdated(oldSupply, newMaxSupply);
     }
 

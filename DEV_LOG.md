@@ -93,8 +93,13 @@ Refactoring the code:
 - There are more issues than I thought, tomorrow I try to fix them.
 
 28/02/26
-- I've finished the refund contract now MasterKey contract.
+
+- I've finished the refund contract now MasterKeyVault contract.
 - I'm updating the documentation webpage.
+
+01/02/26
+
+- MasterKeyVault and SoulKey contracts are bugfree, tested and ready for deployment. Whoa the refund function made the contracts exponencially harder to develop and fix.
 
 Notes:
 

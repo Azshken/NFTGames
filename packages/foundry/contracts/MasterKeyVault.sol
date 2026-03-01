@@ -14,14 +14,17 @@ interface ISoulKey {
 }
 
 /**
- * @title SoulKeyVault
+ * @title MasterKeyVault
  * @notice Master contract: holds all funds, manages registered SoulKey game
  *         contracts, and handles refunds. Deploy once; register many games.
+ *         No time locks, Multisig is required. Critical functions withdrawAll,
+ *         registerGame should not rely on a single EOA.
  *
  * Reserve lifecycle per payment:
  *   Locked → ReleasedByClaim   (CD key claimed — refund permanently blocked)
  *   Locked → ReleasedByExpiry  (14-day window expired — refund permanently blocked)
- *   Locked → Refunded          (owner triggered refund within window; fee retained)
+ *   Locked → Refunded          (permissionless, NFT minter triggered refund within window;
+ *                              fee retained)
  *
  * Anti-DoS: refunds deduct a configurable fee (default 5%). This makes
  * supply-griefing (mint all → refund before expiry) economically irrational.
@@ -29,7 +32,7 @@ interface ISoulKey {
  * releaseReserveOnExpiry is permissionless once the window has passed so
  * reserve unlocking never depends on owner liveness.
  */
-contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
+contract MasterKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
@@ -46,7 +49,8 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
      * Locked           — window active, refund still possible
      * ReleasedByClaim  — CD key was claimed; reserve freed, refund blocked
      * ReleasedByExpiry — 14-day window elapsed; reserve freed, refund blocked
-     * Refunded         — owner processed a refund; fee retained, remainder returned
+     * Refunded         — token holder processed a refund within the window;
+     *                    fee retained, remainder returned
      */
     enum ReserveStatus {
         Locked,
@@ -111,7 +115,10 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
         ReserveStatus releaseReason
     );
     event RefundFeeUpdated(uint256 oldFeeBps, uint256 newFeeBps);
-    event PaymentTokensUpdated(address usdt, address usdc);
+    event PaymentTokenUpdated(
+        address indexed token,
+        address indexed newAddress
+    );
     event ManagedTokenCleared(address token);
 
     // ============ Errors ============
@@ -131,6 +138,7 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
     error ReserveNotZero();
     error ClaimantMismatch();
     error BatchTooLarge();
+    error NotTokenOwner();
 
     // ============ Modifiers ============
 
@@ -225,7 +233,9 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
      *      back into the game contract. This prevents a buggy game contract from
      *      releasing reserves without a genuine claim having occurred.
      *      Records are keyed by (msg.sender, tokenId) so cross-game manipulation
-     *      is structurally impossible.
+     *      is structurally impossible. It seems that the function has a check after
+     *      the effect (CEI), but in reality the effect comes before the interaction
+     *      (external call) and this format follows CEI more closely.
      * @param tokenId  The token whose CD key was just claimed
      * @param claimant The address that called claimCdKey — verified against ownerOf
      */
@@ -356,9 +366,9 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
         address soulKeyContract,
         uint256 tokenId,
         string
-            calldata reason /** For gas savings it can be bytes32 with predefined 
-        reasons, but at the begining I'm curious why are users refunding */
-    ) external onlyOwner nonReentrant whenNotPaused {
+            calldata reason /** Informative. Customers can share their reasons for a refund.
+            For gas savings it can be bytes32 with predefined reasons. */
+    ) external nonReentrant {
         if (!registeredGames[soulKeyContract]) revert NotRegisteredGame();
 
         PaymentRecord storage record = paymentRecords[soulKeyContract][tokenId];
@@ -370,6 +380,9 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
 
         // Resolve current holder before burn clears ownerOf
         address recipient = ISoulKey(soulKeyContract).ownerOf(tokenId);
+
+        // Caller must be the current token holder
+        if (msg.sender != recipient) revert NotTokenOwner();
 
         // Compute fee retained by vault as anti-DoS penalty
         uint256 fee = (record.amount * refundFeeBps) / 10_000;
@@ -452,26 +465,34 @@ contract SoulKeyVault is Ownable2Step, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @notice Update managed payment token addresses.
-     * @dev Both old addresses remain marked as managed until their reserves
+     * @notice setPaymentTokens is split in two. If one payment address changes
+     *         it doesn't block the other. Update the USDC payment token address.
+     * @dev The old address remains marked as managed until its reserves
      *      are zero. Call clearManagedToken() after all pending refunds settle.
      */
-    function setPaymentTokens(
-        address usdtAddress,
-        address usdcAddress
-    ) external onlyOwner {
-        if (usdtAddress == address(0) || usdcAddress == address(0))
-            revert ZeroAddress();
-        if (
-            reservedERC20[address(USDT)] != 0 ||
-            reservedERC20[address(USDC)] != 0
-        ) revert ReserveNotZero(); // force clearManagedToken first
+    function setPaymentTokenUSDC(address usdcAddress) external onlyOwner {
+        if (usdcAddress == address(0)) revert ZeroAddress();
+        if (reservedERC20[address(USDC)] != 0) revert ReserveNotZero(); // force clearManagedToken first
+        // Mark new addresses as managed
+        _isManagedToken[usdcAddress] = true;
+        address oldAddress = address(USDC); // ← capture before overwrite
+        USDC = IERC20(usdcAddress);
+        emit PaymentTokenUpdated(oldAddress, usdcAddress);
+    }
+
+    /**
+     * @notice Update the USDT payment token address.
+     * @dev The old address remains marked as managed until its reserves
+     *      are zero. Call clearManagedToken() after all pending refunds settle.
+     */
+    function setPaymentTokenUSDT(address usdtAddress) external onlyOwner {
+        if (usdtAddress == address(0)) revert ZeroAddress();
+        if (reservedERC20[address(USDT)] != 0) revert ReserveNotZero(); // force clearManagedToken first
         // Mark new addresses as managed
         _isManagedToken[usdtAddress] = true;
-        _isManagedToken[usdcAddress] = true;
+        address oldAddress = address(USDT);
         USDT = IERC20(usdtAddress);
-        USDC = IERC20(usdcAddress);
-        emit PaymentTokensUpdated(usdtAddress, usdcAddress);
+        emit PaymentTokenUpdated(oldAddress, usdtAddress);
     }
 
     /**

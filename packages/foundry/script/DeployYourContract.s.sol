@@ -29,6 +29,7 @@ contract DeployYourContract is Script {
         uint256 deployerPrivateKey;
         address usdtAddress;
         address usdcAddress;
+        address vault;
 
         // Only use localhost private key for local chains
         if (block.chainid == 31337) {
@@ -82,9 +83,11 @@ contract DeployYourContract is Script {
 
         // Deploy the SoulboundNFT contract
         SoulKey soulboundContract = new SoulKey(
-            usdtAddress,
-            usdcAddress,
-            "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/QmbPeDRqJALuDNPzb2YdV24duNEXJWiYyvKGbZWkMpENws" // ← Your metadata CID
+            address(vault), // vaultAddress
+            "https://api.example.com/metadata/", // baseTokenURI
+            "Fallout", // gameName
+            "FALL", // gameSymbol
+            uint64(100) // supply
         );
 
         console.logString(
