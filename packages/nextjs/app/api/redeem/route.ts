@@ -5,44 +5,36 @@ import { createPublicClient, http, parseAbi } from "viem";
 
 import scaffoldConfig from "~~/scaffold.config";
 import { decrypt, encryptWithPublicKey } from "~~/utils/crypto";
-import { getCDKeyByTokenId, storeUserEncryptedKey } from "~~/utils/db";
+import { createRedemptionRecord, getCDKeyByTokenId } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
-
-    if (!body) {
-      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
-    }
+    if (!body) return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
 
     const { tokenId, userAddress, userPublicKey } = body;
-
     if (!tokenId || !userAddress || !userPublicKey) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    // Validate tokenId before BigInt conversion
-    // Use the server-side runtime var in API routes — not inlined at build time
     const contractAddress = (process.env.CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_CONTRACT_ADDRESS) as
       | `0x${string}`
       | undefined;
-
     if (!contractAddress) {
-      console.error("CONTRACT_ADDRESS is not set");
-      return NextResponse.json({ success: false, error: "Server misconfiguration" }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: "Server misconfiguration: contract address not set" },
+        { status: 500 },
+      );
     }
 
-    // 1. Verify NFT ownership on-chain
     const rpcUrl = process.env.ALCHEMY_RPC_URL;
     if (!rpcUrl) {
-      console.error("ALCHEMY_RPC_URL is not set");
       return NextResponse.json({ success: false, error: "Server misconfiguration: missing RPC" }, { status: 500 });
     }
 
-    const targetChain = scaffoldConfig.targetNetworks[0];
-
+    // 1. Verify NFT ownership on-chain
     const publicClient = createPublicClient({
-      chain: targetChain,
+      chain: scaffoldConfig.targetNetworks[0],
       transport: http(rpcUrl),
     });
 
@@ -57,33 +49,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Not NFT owner" }, { status: 403 });
     }
 
-    // 2. Get CDKey from database
+    // 2. Fetch cd_key + existing redemption record from new schema
     const cdkeyRecord = await getCDKeyByTokenId(BigInt(tokenId));
-
     if (!cdkeyRecord) {
-      console.log("[redeem] returning already-encrypted key");
-      return NextResponse.json({ success: false, error: "CD key not found or already redeemed" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "CD key not found for this token" }, { status: 404 });
     }
 
-    // 3. If already re-encrypted for this user, return all required fields
-    if (cdkeyRecord.user_encrypted_key) {
+    // 3. If already re-encrypted for user (redemption record exists), return it
+    if (cdkeyRecord.wallet_encrypted_cdkey) {
       return NextResponse.json({
         success: true,
-        encryptedCDKey: cdkeyRecord.user_encrypted_key,
+        encryptedCDKey: cdkeyRecord.wallet_encrypted_cdkey,
         commitmentHash: cdkeyRecord.commitment_hash,
         cdkeyId: cdkeyRecord.id.toString(),
         alreadyEncrypted: true,
       });
     }
 
-    // 4. Decrypt CDKey (only time this happens server-side)
-    const plaintextCDKey = decrypt(cdkeyRecord.encrypted_cdkey);
+    // encrypted_key may already be nulled if previously processed — guard here
+    if (!cdkeyRecord.encrypted_key) {
+      return NextResponse.json({ success: false, error: "CD key already redeemed — check on-chain" }, { status: 409 });
+    }
+
+    // 4. Decrypt server-side key (only ever happens once)
+    const plaintextCDKey = decrypt(cdkeyRecord.encrypted_key);
 
     // 5. Re-encrypt with user's MetaMask public key
     const encryptedForUser = encryptWithPublicKey(plaintextCDKey, userPublicKey);
 
-    // 6. Store user-encrypted key in database
-    await storeUserEncryptedKey(cdkeyRecord.id, encryptedForUser);
+    // 6. Store in redemptions table (partial — confirmed after on-chain tx)
+    await createRedemptionRecord(cdkeyRecord.id, encryptedForUser);
 
     return NextResponse.json({
       success: true,

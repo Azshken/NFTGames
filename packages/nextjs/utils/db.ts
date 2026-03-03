@@ -2,87 +2,237 @@
 // packages/nextjs/utils/db.ts
 import { sql } from "@vercel/postgres";
 
-export interface CDKey {
+// ============ Types ============
+
+export interface CDKeyRow {
   id: number;
-  encrypted_cdkey: string;
+  encrypted_key: string; // ← was encrypted_cdkey in old schema
   commitment_hash: string;
-  token_id: bigint | null;
-  wallet_address: string | null;
-  is_redeemed: boolean;
-  redeemed_by: string | null;
-  user_encrypted_key: string | null;
+  batch_id: number;
   created_at: Date;
 }
 
-export async function getAvailableCDKey(): Promise<CDKey | null> {
-  const result = await sql`
-    SELECT id, encrypted_cdkey, commitment_hash
-    FROM cdkeys
-    WHERE token_id IS NULL
-      AND is_redeemed = FALSE
-    ORDER BY created_at ASC
+export interface CDKeyWithRedemption extends CDKeyRow {
+  wallet_encrypted_cdkey: string | null; // from redemptions table
+  redemption_id: number | null;
+}
+
+// ============ Product / Batch helpers ============
+
+/**
+ * Looks up product_id by contract address. Creates a placeholder product row
+ * if none exists — used on first key generation for a new SoulKey contract.
+ */
+export async function getOrCreateProduct(contractAddress: string, name = "Unknown Game", genre = ""): Promise<number> {
+  const existing = await sql`
+    SELECT product_id FROM products
+    WHERE LOWER(contract_address) = LOWER(${contractAddress})
     LIMIT 1
-    FOR UPDATE SKIP LOCKED
   `;
+  if (existing.rows.length > 0) return existing.rows[0].product_id as number;
 
-  return result.rows[0] as CDKey | null;
+  const inserted = await sql`
+    INSERT INTO products (contract_address, name, genre, description)
+    VALUES (${contractAddress}, ${name}, ${genre}, '')
+    RETURNING product_id
+  `;
+  return inserted.rows[0].product_id as number;
 }
 
-export async function linkCDKeyToToken(cdkeyId: number, tokenId: bigint, walletAddress: string) {
-  await sql`
-    UPDATE cdkeys
-    SET 
-      token_id = ${tokenId.toString()},
-      wallet_address = ${walletAddress},
-      updated_at = NOW()
-    WHERE id = ${cdkeyId}
-  `;
-}
-
-export async function getCDKeyByTokenId(tokenId: bigint): Promise<CDKey | null> {
+export async function createBatch(productId: number, notes: string): Promise<number> {
   const result = await sql`
-    SELECT *
-    FROM cdkeys
-    WHERE token_id = ${tokenId.toString()}
+    INSERT INTO batches (product_id, notes, created_at)
+    VALUES (${productId}, ${notes}, NOW())
+    RETURNING batch_id
   `;
-
-  return result.rows[0] as CDKey | null;
+  return result.rows[0].batch_id as number;
 }
 
-export async function storeUserEncryptedKey(cdkeyId: number, userEncryptedKey: string) {
-  await sql`
-    UPDATE cdkeys
-    SET 
-      user_encrypted_key = ${userEncryptedKey},
-      updated_at = NOW()
-    WHERE id = ${cdkeyId}
-  `;
+export async function insertCDKeys(
+  batchId: number,
+  keys: { encrypted_key: string; commitment_hash: string }[],
+): Promise<void> {
+  // Insert one by one — Vercel postgres doesn't support bulk parameterised inserts via tagged template
+  for (const key of keys) {
+    await sql`
+      INSERT INTO cd_keys (batch_id, encrypted_key, commitment_hash, created_at)
+      VALUES (${batchId}, ${key.encrypted_key}, ${key.commitment_hash}, NOW())
+    `;
+  }
 }
 
-export async function markCDKeyRedeemed(cdkeyId: number, userAddress: string, txHash: string, ipAddress?: string) {
-  // Update CDKey - Keep user_encrypted_key, delete original encrypted_cdkey
-  await sql`
-    UPDATE cdkeys
-    SET 
-      is_redeemed = TRUE,
-      redeemed_by = ${userAddress},
-      redeemed_at = NOW(),
-      encrypted_cdkey = NULL
-    WHERE id = ${cdkeyId}
-  `;
+// ============ Mint helpers ============
 
-  // Log redemption
+/**
+ * Returns a cd_key that has no mint record yet, scoped to a specific product
+ * (identified by contract_address). Uses SKIP LOCKED for concurrent safety.
+ */
+export async function getAvailableCDKey(contractAddress: string): Promise<CDKeyRow | null> {
+  const result = await sql`
+    SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
+    FROM cd_keys ck
+    JOIN batches b ON b.batch_id = ck.batch_id
+    JOIN products p ON p.product_id = b.product_id
+    WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
+      AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+    ORDER BY ck.created_at ASC
+    LIMIT 1
+    FOR UPDATE OF ck SKIP LOCKED
+  `;
+  return (result.rows[0] as CDKeyRow) ?? null;
+}
+
+export async function getAvailableKeyCount(contractAddress: string): Promise<number> {
+  const result = await sql`
+    SELECT COUNT(*) AS cnt
+    FROM cd_keys ck
+    JOIN batches b ON b.batch_id = ck.batch_id
+    JOIN products p ON p.product_id = b.product_id
+    WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
+      AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+  `;
+  return Number(result.rows[0].cnt);
+}
+
+/**
+ * Records a successful on-chain mint in the `mints` table.
+ * payment_token is address(0) for ETH, or the ERC-20 contract address.
+ */
+export async function createMint(params: {
+  cdkeyId: number;
+  tokenId: bigint;
+  mintedBy: string;
+  mintTxHash: string;
+  blockNumber: bigint;
+  paymentToken: string;
+  paymentAmount: string;
+}): Promise<void> {
   await sql`
-    INSERT INTO redemption_history (
-      cdkey_id, token_id, redeemed_by, tx_hash, ip_address
+    INSERT INTO mints (cdkey_id, token_id, minted_by, minted_at, mint_tx_hash, block_number, payment_token, payment_amount)
+    VALUES (
+      ${params.cdkeyId},
+      ${params.tokenId.toString()},
+      ${params.mintedBy},
+      NOW(),
+      ${params.mintTxHash},
+      ${params.blockNumber.toString()},
+      ${params.paymentToken},
+      ${params.paymentAmount}
     )
-    SELECT 
-      ${cdkeyId},
-      token_id,
-      ${userAddress},
-      ${txHash},
-      ${ipAddress || null}::inet
-    FROM cdkeys
-    WHERE id = ${cdkeyId}
+  `;
+}
+
+// ============ Redeem helpers ============
+
+/**
+ * Fetches a cd_key row plus its current redemption record (if any)
+ * by joining through mints → cd_keys → redemptions.
+ */
+export async function getCDKeyByTokenId(tokenId: bigint): Promise<CDKeyWithRedemption | null> {
+  const result = await sql`
+    SELECT
+      ck.id,
+      ck.encrypted_key,
+      ck.commitment_hash,
+      ck.batch_id,
+      ck.created_at,
+      r.wallet_encrypted_cdkey,
+      r.redemption_id
+    FROM mints m
+    JOIN cd_keys ck ON ck.id = m.cdkey_id
+    LEFT JOIN redemptions r ON r.cdkey_id = ck.id
+    WHERE m.token_id = ${tokenId.toString()}
+    LIMIT 1
+  `;
+  return (result.rows[0] as CDKeyWithRedemption) ?? null;
+}
+
+/**
+ * Creates an initial redemption record when the server re-encrypts the key
+ * for the user — before the on-chain claimCdKey tx is sent.
+ * redeemed_by / tx data are filled in by confirmRedemption().
+ */
+export async function createRedemptionRecord(cdkeyId: number, walletEncryptedCdkey: string): Promise<number> {
+  const result = await sql`
+    INSERT INTO redemptions (cdkey_id, wallet_encrypted_cdkey)
+    VALUES (${cdkeyId}, ${walletEncryptedCdkey})
+    ON CONFLICT (cdkey_id) DO UPDATE
+      SET wallet_encrypted_cdkey = EXCLUDED.wallet_encrypted_cdkey
+    RETURNING redemption_id
+  `;
+  return result.rows[0].redemption_id as number;
+}
+
+/**
+ * Finalises the redemption record after claimCdKey tx confirms on-chain.
+ * Also deletes the server-side encrypted_key — it is no longer needed.
+ */
+export async function confirmRedemption(params: {
+  cdkeyId: number;
+  redeemedBy: string;
+  redemptionTxHash: string;
+  blockNumber: bigint;
+}): Promise<void> {
+  await sql`
+    UPDATE redemptions
+    SET
+      redeemed_by    = ${params.redeemedBy},
+      redeemed_at    = NOW(),
+      redemption_tx_hash = ${params.redemptionTxHash},
+      block_number   = ${params.blockNumber.toString()}
+    WHERE cdkey_id = ${params.cdkeyId}
+  `;
+
+  // Remove server-side plaintext encryption — key now lives on-chain only
+  await sql`
+    UPDATE cd_keys
+    SET encrypted_key = NULL
+    WHERE id = ${params.cdkeyId}
+  `;
+}
+
+// ============ Reserve release helper ============
+
+export async function recordReserveRelease(params: {
+  cdkeyId: number;
+  releaseReason: "claim" | "expiry";
+  txHash: string;
+  blockNumber: bigint;
+}): Promise<void> {
+  await sql`
+    INSERT INTO reserve_releases (cdkey_id, release_reason, released_at, tx_hash, block_number)
+    VALUES (${params.cdkeyId}, ${params.releaseReason}, NOW(), ${params.txHash}, ${params.blockNumber.toString()})
+    ON CONFLICT (tx_hash) DO NOTHING
+  `;
+}
+
+// ============ Refund helper ============
+
+export async function recordRefund(params: {
+  cdkeyId: number;
+  refundedBy: string;
+  refundReason: string;
+  refundTxHash: string;
+  blockNumber: bigint;
+  paymentToken: string;
+  refundedAmount: string;
+  feeRetained: string;
+}): Promise<void> {
+  await sql`
+    INSERT INTO refunds (
+      cdkey_id, refunded_by, refunded_at, refund_reason,
+      refund_tx_hash, block_number, payment_token, refunded_amount, fee_retained
+    ) VALUES (
+      ${params.cdkeyId},
+      ${params.refundedBy},
+      NOW(),
+      ${params.refundReason},
+      ${params.refundTxHash},
+      ${params.blockNumber.toString()},
+      ${params.paymentToken},
+      ${params.refundedAmount},
+      ${params.feeRetained}
+    )
+    ON CONFLICT (cdkey_id) DO NOTHING
   `;
 }

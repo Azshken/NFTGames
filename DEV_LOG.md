@@ -99,7 +99,7 @@ Refactoring the code:
 
 01/02/26
 
-- MasterKeyVault and SoulKey contracts are bugfree, tested and ready for deployment. Whoa the refund function made the contracts exponencially harder to develop and fix.
+- MasterKeyVault and SoulKey contracts are bugfree, tested and ready for deployment. Whoa, the refund function made the contracts exponencially harder to develop and fix -- so much so that there are two contracts now. One for the NFT handling and one for fund management.
 
 Notes:
 

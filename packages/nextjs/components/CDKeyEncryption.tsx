@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//packages/nextjst/app/components/CDKeyEncryption.tsx
 "use client";
 
 import { useEffect, useState } from "react";

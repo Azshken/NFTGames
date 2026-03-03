@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// packages/nextjs/app/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSignMessage } from "wagmi";
 
-import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
 export default function AdminPage() {
@@ -17,12 +18,17 @@ export default function AdminPage() {
   const [keys, setKeys] = useState<{ commitmentHash: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [quantity, setQuantity] = useState(10);
+  const [batchNotes, setBatchNotes] = useState("");
   const [totalAvailable, setTotalAvailable] = useState<number>(0);
+  const [batchId, setBatchId] = useState<number | null>(null);
 
+  // ← contract name updated to SoulKey
   const { data: contractOwner } = useScaffoldReadContract({
-    contractName: "SoulboundNFT",
+    contractName: "SoulKey",
     functionName: "owner",
   });
+  const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SoulKey" });
+  const contractAddress = deployedContractData?.address;
 
   useEffect(() => {
     if (isConnected && contractOwner && connectedAddress) {
@@ -37,19 +43,26 @@ export default function AdminPage() {
     isConnected && contractOwner && connectedAddress && contractOwner.toLowerCase() === connectedAddress.toLowerCase();
 
   async function generateKeys() {
-    if (!connectedAddress) return;
+    if (!connectedAddress || !contractAddress) return;
     setLoading(true);
     try {
-      // Time-bound message prevents replay attacks — valid for 5 minutes
       const timestamp = Date.now();
-      const message = `Generate ${quantity} CD keys for SoulboundNFT\nTimestamp: ${timestamp}`;
-
+      // ← message updated to match SoulKey contract name
+      const message = `Generate ${quantity} CD keys for SoulKey\nTimestamp: ${timestamp}`;
       const signature = await signMessageAsync({ message });
 
       const response = await fetch("/api/admin/generate-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity, walletAddress: connectedAddress, signature, message, timestamp }),
+        body: JSON.stringify({
+          quantity,
+          walletAddress: connectedAddress,
+          contractAddress, // ← passed so backend can look up the product
+          batchNotes,
+          signature,
+          message,
+          timestamp,
+        }),
       });
 
       if (!response.ok) {
@@ -58,16 +71,15 @@ export default function AdminPage() {
       }
 
       const data = await response.json();
-
       if (data.success) {
         setKeys(data.keys || []);
         setTotalAvailable(data.totalAvailable);
-        notification.success(`✅ Generated ${data.count} keys!`);
+        setBatchId(data.batchId);
+        notification.success(`✅ Generated ${data.count} keys in batch #${data.batchId}!`);
       } else {
         notification.error(data.error || "Failed to generate keys");
       }
     } catch (error: any) {
-      // User rejected the signature request in MetaMask
       if (error?.code === 4001 || error?.message?.includes("rejected")) {
         notification.error("Signature rejected — no keys generated");
       } else {
@@ -85,7 +97,7 @@ export default function AdminPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `commitment-hashes-${Date.now()}.csv`;
+    a.download = `commitment-hashes-batch${batchId ?? "unknown"}-${Date.now()}.csv`;
     a.click();
   }
 
@@ -114,37 +126,64 @@ export default function AdminPage() {
     <div className="container mx-auto p-8 max-w-6xl">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">🔐 Admin Dashboard</h1>
-        <p className="text-base-content/70">Generate CD key batches</p>
+        <p className="text-base-content/70">Generate CD key batches for SoulKey</p>
       </div>
 
       <div className="alert alert-success mb-8">
         <span className="text-sm font-mono">✅ Owner: {connectedAddress}</span>
+        {contractAddress && <span className="text-sm font-mono ml-4">📄 Contract: {contractAddress}</span>}
       </div>
 
       <div className="card bg-base-200 shadow-xl mb-8">
         <div className="card-body">
           <h2 className="card-title">Generate New Batch</h2>
-          <div className="form-control w-full">
-            <label className="label">
-              <span className="label-text font-semibold">Quantity</span>
-              <span className="label-text-alt">Max: 1000</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="1000"
-              className="input input-bordered w-full"
-              value={quantity}
-              onChange={e => setQuantity(parseInt(e.target.value) || 1)}
-            />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="form-control w-full">
+              <label className="label">
+                <span className="label-text font-semibold">Quantity</span>
+                <span className="label-text-alt">Max: 1000</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="1000"
+                className="input input-bordered w-full"
+                value={quantity}
+                onChange={e => setQuantity(parseInt(e.target.value) || 1)}
+              />
+            </div>
+
+            <div className="form-control w-full">
+              <label className="label">
+                <span className="label-text font-semibold">Batch Notes</span>
+                <span className="label-text-alt">Optional</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="e.g. Launch batch, promo batch..."
+                value={batchNotes}
+                onChange={e => setBatchNotes(e.target.value)}
+              />
+            </div>
           </div>
+
           <div className="stats shadow mt-4">
             <div className="stat">
-              <div className="stat-title">Total Unredeemed Keys</div>
+              <div className="stat-title">Total Unminted Keys</div>
               <div className="stat-value text-primary">{totalAvailable}</div>
               <div className="stat-desc">Available for minting</div>
             </div>
+            {batchId && (
+              <div className="stat">
+                <div className="stat-title">Last Batch ID</div>
+                <div className="stat-value text-secondary">#{batchId}</div>
+                <div className="stat-desc">{keys.length} keys generated</div>
+              </div>
+            )}
           </div>
+
           <div className="card-actions justify-end mt-4">
             <button className="btn btn-primary" onClick={generateKeys} disabled={loading}>
               {loading ? (
@@ -165,7 +204,7 @@ export default function AdminPage() {
           <div className="card-body">
             <div className="flex justify-between items-center mb-4">
               <h2 className="card-title">
-                This Batch <span className="badge badge-primary">{keys.length}</span>
+                Batch #{batchId} <span className="badge badge-primary">{keys.length}</span>
               </h2>
               <button className="btn btn-sm btn-outline" onClick={downloadHashes}>
                 💾 Download CSV
