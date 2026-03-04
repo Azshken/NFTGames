@@ -252,13 +252,14 @@ const Home: NextPage = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cdkeyId: commitmentData.cdkeyId,
           tokenId: tokenId.toString(),
           walletAddress: connectedAddress,
           txHash,
           blockNumber: receipt.blockNumber.toString(),
           paymentToken: mintedPaymentToken,
           paymentAmount,
+          contractAddress,
+          commitmentHash: commitmentData.commitmentHash, // the key lookup anchor
         }),
       });
 
@@ -297,7 +298,12 @@ const Home: NextPage = () => {
       const redeemRes = await fetch("/api/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tokenId: selectedTokenId, userAddress: connectedAddress, userPublicKey }),
+        body: JSON.stringify({
+          tokenId: selectedTokenId,
+          userAddress: connectedAddress,
+          userPublicKey,
+          contractAddress,
+        }),
       });
       const redeemData = await redeemRes.json();
       if (!redeemData.success) throw new Error(redeemData.error || "Failed to retrieve CD key");

@@ -74,29 +74,35 @@ contract DeployContracts is Script {
         MasterKeyVault vault = new MasterKeyVault(usdtAddress, usdcAddress);
         console.log("MasterKeyVault deployed:", address(vault));
 
-        // ── 2. Deploy SoulKey (game contract) ────────────────────────────────
-        SoulKey soulKey = new SoulKey(
-            address(vault),
-            BASE_URI,
-            GAME_NAME,
-            GAME_SYMBOL,
-            GAME_SUPPLY
-        );
-        console.log("SoulKey deployed:       ", address(soulKey));
+        /** Deploying and registering the SoulKey contract commented out.
+         *  Only the MasterKeyVault is deployed alone.
+         *  Registering the game in this format doesn't support the Multisig.
+         *  The SoulKey contracts can be deployed separatelly by DeployGameContract.s.sol
+         */
 
-        // ── 3. Register the game with the vault ──────────────────────────────
-        vault.registerGame(address(soulKey));
-        console.log("SoulKey registered in vault.");
+        // // ── 2. Deploy SoulKey (game contract) ────────────────────────────────
+        // SoulKey soulKey = new SoulKey(
+        //     address(vault),
+        //     BASE_URI,
+        //     GAME_NAME,
+        //     GAME_SYMBOL,
+        //     GAME_SUPPLY
+        // );
+        // console.log("SoulKey deployed:       ", address(soulKey));
 
-        vm.stopBroadcast();
+        // // ── 3. Register the game with the vault ──────────────────────────────
+        // vault.registerGame(address(soulKey));
+        // console.log("SoulKey registered in vault.");
+
+        // vm.stopBroadcast();
 
         // ── Summary ───────────────────────────────────────────────────────────
         console.log("---");
         console.log("Deployment complete.");
         console.log("  MasterKeyVault :", address(vault));
-        console.log("  SoulKey        :", address(soulKey));
-        console.log("  Game           :", GAME_NAME, "/", GAME_SYMBOL);
-        console.log("  Supply         :", GAME_SUPPLY);
+        // console.log("  SoulKey        :", address(soulKey));
+        // console.log("  Game           :", GAME_NAME, "/", GAME_SYMBOL);
+        // console.log("  Supply         :", GAME_SUPPLY);
         console.log("  USDT           :", usdtAddress);
         console.log("  USDC           :", usdcAddress);
     }

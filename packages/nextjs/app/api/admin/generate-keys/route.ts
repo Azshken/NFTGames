@@ -72,6 +72,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const vaultAddress = await publicClient.readContract({
+      address: contractAddress,
+      abi: parseAbi(["function vault() view returns (address)"]),
+      functionName: "vault",
+    });
+    const isRegistered = await publicClient.readContract({
+      address: vaultAddress,
+      abi: parseAbi(["function registeredGames(address) view returns (bool)"]),
+      functionName: "registeredGames",
+      args: [contractAddress],
+    });
+    if (!isRegistered)
+      return NextResponse.json({ success: false, error: "Contract not registered in vault" }, { status: 400 });
+
     // 5. Resolve product — create if first time this contract is seen
     const productId = await getOrCreateProduct(contractAddress);
 

@@ -2,7 +2,7 @@
 // packages/nextjs/app/api/mint/get-commitment/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-import { getAvailableCDKey } from "~~/utils/db";
+import { reserveCDKeyForWallet } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,8 +24,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid contract address format" }, { status: 400 });
     }
 
-    // Fetch an unminted key scoped to this specific product/contract
-    const cdkey = await getAvailableCDKey(contractAddress);
+    // Atomically reserve a key for this wallet — or return the existing reservation
+    // if this wallet already called get-commitment without minting yet.
+    const cdkey = await reserveCDKeyForWallet(contractAddress, walletAddress);
     if (!cdkey) {
       return NextResponse.json({ success: false, error: "No CD keys available for this product" }, { status: 404 });
     }
@@ -33,7 +34,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       commitmentHash: cdkey.commitment_hash,
-      cdkeyId: cdkey.id,
     });
   } catch (error: any) {
     console.error("Get Commitment API error:", error);

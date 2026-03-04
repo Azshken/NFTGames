@@ -12,18 +12,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
 
-    const { tokenId, userAddress, userPublicKey } = body;
+    const { tokenId, userAddress, userPublicKey, contractAddress } = body;
     if (!tokenId || !userAddress || !userPublicKey) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    const contractAddress = (process.env.CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_CONTRACT_ADDRESS) as
-      | `0x${string}`
-      | undefined;
     if (!contractAddress) {
       return NextResponse.json(
         { success: false, error: "Server misconfiguration: contract address not set" },
-        { status: 500 },
+        { status: 400 },
       );
     }
 

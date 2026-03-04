@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // packages/nextjs/utils/db.ts
-import { sql } from "@vercel/postgres";
+import { db, sql, type VercelPoolClient } from "@vercel/postgres";
 
 // ============ Types ============
 
@@ -15,6 +15,17 @@ export interface CDKeyRow {
 export interface CDKeyWithRedemption extends CDKeyRow {
   wallet_encrypted_cdkey: string | null; // from redemptions table
   redemption_id: number | null;
+}
+
+export interface MintParams {
+  contractAddress: string;
+  commitmentHash: string; // used to look up the specific key
+  tokenId: bigint;
+  mintedBy: string;
+  mintTxHash: string;
+  blockNumber: bigint;
+  paymentToken: string;
+  paymentAmount: string;
 }
 
 // ============ Product / Batch helpers ============
@@ -67,19 +78,61 @@ export async function insertCDKeys(
  * Returns a cd_key that has no mint record yet, scoped to a specific product
  * (identified by contract_address). Uses SKIP LOCKED for concurrent safety.
  */
-export async function getAvailableCDKey(contractAddress: string): Promise<CDKeyRow | null> {
-  const result = await sql`
-    SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
-    FROM cd_keys ck
-    JOIN batches b ON b.batch_id = ck.batch_id
-    JOIN products p ON p.product_id = b.product_id
-    WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
-      AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
-    ORDER BY ck.created_at ASC
-    LIMIT 1
-    FOR UPDATE OF ck SKIP LOCKED
-  `;
-  return (result.rows[0] as CDKeyRow) ?? null;
+export async function reserveCDKeyForWallet(contractAddress: string, walletAddress: string): Promise<CDKeyRow | null> {
+  const client: VercelPoolClient = await db.connect();
+  try {
+    await client.sql`BEGIN`;
+
+    // Same wallet always gets its existing reservation back
+    const existing = await client.sql`
+      SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
+      FROM cd_keys ck
+      JOIN batches b ON b.batch_id = ck.batch_id
+      JOIN products p ON p.product_id = b.product_id
+      WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
+        AND LOWER(ck.reserved_by) = LOWER(${walletAddress})
+        AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+      LIMIT 1
+    `;
+
+    if (existing.rows[0]) {
+      await client.sql`COMMIT`;
+      return existing.rows[0] as CDKeyRow;
+    }
+
+    // New wallet — grab next unreserved, unminted key
+    const result = await client.sql`
+      SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
+      FROM cd_keys ck
+      JOIN batches b ON b.batch_id = ck.batch_id
+      JOIN products p ON p.product_id = b.product_id
+      WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
+        AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+        AND ck.reserved_by IS NULL
+      ORDER BY ck.created_at ASC
+      LIMIT 1
+      FOR UPDATE OF ck SKIP LOCKED
+    `;
+
+    if (!result.rows[0]) {
+      await client.sql`ROLLBACK`;
+      return null;
+    }
+
+    const key = result.rows[0] as CDKeyRow;
+
+    await client.sql`
+      UPDATE cd_keys SET reserved_by = ${walletAddress} WHERE id = ${key.id}
+    `;
+
+    await client.sql`COMMIT`;
+    return key;
+  } catch (error) {
+    await client.sql`ROLLBACK`;
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getAvailableKeyCount(contractAddress: string): Promise<number> {
@@ -94,32 +147,62 @@ export async function getAvailableKeyCount(contractAddress: string): Promise<num
   return Number(result.rows[0].cnt);
 }
 
+// atomic reserve + mint record
 /**
- * Records a successful on-chain mint in the `mints` table.
- * payment_token is address(0) for ETH, or the ERC-20 contract address.
+ * Atomically reserves a cd_key and inserts the mint record in a single
+ * transaction. FOR UPDATE SKIP LOCKED inside the transaction holds the row
+ * lock until COMMIT, preventing double-assignment under concurrent load.
  */
-export async function createMint(params: {
-  cdkeyId: number;
-  tokenId: bigint;
-  mintedBy: string;
-  mintTxHash: string;
-  blockNumber: bigint;
-  paymentToken: string;
-  paymentAmount: string;
-}): Promise<void> {
-  await sql`
-    INSERT INTO mints (cdkey_id, token_id, minted_by, minted_at, mint_tx_hash, block_number, payment_token, payment_amount)
-    VALUES (
-      ${params.cdkeyId},
-      ${params.tokenId.toString()},
-      ${params.mintedBy},
-      NOW(),
-      ${params.mintTxHash},
-      ${params.blockNumber.toString()},
-      ${params.paymentToken},
-      ${params.paymentAmount}
-    )
-  `;
+export async function reserveAndMint(params: MintParams): Promise<CDKeyRow> {
+  const client: VercelPoolClient = await db.connect();
+  try {
+    await client.sql`BEGIN`;
+
+    // Lock the SPECIFIC key that was committed to on-chain at mint time
+    const keyResult = await client.sql`
+      SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
+      FROM cd_keys ck
+      WHERE ck.commitment_hash = ${params.commitmentHash}
+        AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+      FOR UPDATE OF ck SKIP LOCKED
+    `;
+
+    if (!keyResult.rows[0]) {
+      await client.sql`ROLLBACK`;
+      throw new Error("CD key no longer available — may already be minted");
+    }
+
+    const key = keyResult.rows[0] as CDKeyRow;
+
+    await client.sql`
+      INSERT INTO mints (
+        cdkey_id, token_id, minted_by, minted_at,
+        mint_tx_hash, block_number, payment_token, payment_amount
+      ) VALUES (
+        ${key.id},
+        ${params.tokenId.toString()},
+        ${params.mintedBy},
+        NOW(),
+        ${params.mintTxHash},
+        ${params.blockNumber.toString()},
+        ${params.paymentToken},
+        ${params.paymentAmount}
+      )
+    `;
+
+    // Clear the wallet reservation — key is now permanently assigned
+    await client.sql`
+      UPDATE cd_keys SET reserved_by = NULL WHERE id = ${key.id}
+    `;
+
+    await client.sql`COMMIT`;
+    return key;
+  } catch (error) {
+    await client.sql`ROLLBACK`;
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // ============ Redeem helpers ============

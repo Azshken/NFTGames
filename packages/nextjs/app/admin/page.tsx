@@ -5,7 +5,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSignMessage } from "wagmi";
+import { parseAbi } from "viem";
+import { useAccount, usePublicClient, useSignMessage, useWriteContract } from "wagmi";
 
 import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
@@ -14,6 +15,8 @@ export default function AdminPage() {
   const router = useRouter();
   const { address: connectedAddress, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const publicClient = usePublicClient();
+  const { writeContractAsync: writeVaultContract } = useWriteContract();
 
   const [keys, setKeys] = useState<{ commitmentHash: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,6 +24,13 @@ export default function AdminPage() {
   const [batchNotes, setBatchNotes] = useState("");
   const [totalAvailable, setTotalAvailable] = useState<number>(0);
   const [batchId, setBatchId] = useState<number | null>(null);
+  const [regContractAddress, setRegContractAddress] = useState("");
+  const [regGameName, setRegGameName] = useState("");
+  const [regGenre, setRegGenre] = useState("");
+  const [regDescription, setRegDescription] = useState("");
+  const [regLoading, setRegLoading] = useState(false);
+  const [regStatus, setRegStatus] = useState<string>("");
+  const [genContractAddress, setGenContractAddress] = useState<string>("");
 
   // ← contract name updated to SoulKey
   const { data: contractOwner } = useScaffoldReadContract({
@@ -29,6 +39,11 @@ export default function AdminPage() {
   });
   const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SoulKey" });
   const contractAddress = deployedContractData?.address;
+
+  // Pre-fill when scaffold contract loads:
+  useEffect(() => {
+    if (contractAddress) setGenContractAddress(prev => prev || contractAddress);
+  }, [contractAddress]);
 
   useEffect(() => {
     if (isConnected && contractOwner && connectedAddress) {
@@ -43,7 +58,14 @@ export default function AdminPage() {
     isConnected && contractOwner && connectedAddress && contractOwner.toLowerCase() === connectedAddress.toLowerCase();
 
   async function generateKeys() {
-    if (!connectedAddress || !contractAddress) return;
+    if (!connectedAddress) {
+      notification.error("Please connect your wallet");
+      return;
+    }
+    if (!genContractAddress || !/^0x[0-9a-fA-F]{40}$/.test(genContractAddress)) {
+      notification.error("Invalid contract address format");
+      return;
+    }
     setLoading(true);
     try {
       const timestamp = Date.now();
@@ -57,7 +79,7 @@ export default function AdminPage() {
         body: JSON.stringify({
           quantity,
           walletAddress: connectedAddress,
-          contractAddress, // ← passed so backend can look up the product
+          contractAddress: genContractAddress, // ← passed so backend can look up the product
           batchNotes,
           signature,
           message,
@@ -91,6 +113,91 @@ export default function AdminPage() {
     }
   }
 
+  async function registerGame() {
+    if (!connectedAddress || !regContractAddress || !regGameName) {
+      notification.error("Contract address and game name are required");
+      return;
+    }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(regContractAddress)) {
+      notification.error("Invalid contract address");
+      return;
+    }
+
+    setRegLoading(true);
+    setRegStatus("Checking on-chain registration...");
+    try {
+      // Read vault address from the SoulKey contract
+      const vaultAddress = await publicClient!.readContract({
+        address: regContractAddress as `0x${string}`,
+        abi: parseAbi(["function vault() view returns (address)"]),
+        functionName: "vault",
+      });
+
+      // Check if already registered in vault
+      const isRegistered = await publicClient!.readContract({
+        address: vaultAddress as `0x${string}`,
+        abi: parseAbi(["function registeredGames(address) view returns (bool)"]),
+        functionName: "registeredGames",
+        args: [regContractAddress as `0x${string}`],
+      });
+
+      // NOTE: writeVaultContract here requires msg.sender to be the MasterKeyVault owner,
+      // which must be the same wallet as the SoulKey owner. If these diverge in future,
+      // the vault owner must call registerGame() separately.
+      // Call vault.registerGame() if not yet registered (e.g. initial deployment)
+      if (!isRegistered) {
+        setRegStatus("Registering contract with MasterKeyVault...");
+        const txHash = await writeVaultContract({
+          address: vaultAddress as `0x${string}`,
+          abi: parseAbi(["function registerGame(address soulKeyContract) external"]),
+          functionName: "registerGame",
+          args: [regContractAddress as `0x${string}`],
+        });
+        setRegStatus("Waiting for confirmation...");
+        await publicClient!.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+      }
+
+      setRegStatus("Saving product to database...");
+      const timestamp = Date.now();
+      const message = `Register game ${regContractAddress} in SoulKey\nTimestamp: ${timestamp}`;
+      const signature = await signMessageAsync({ message });
+
+      const res = await fetch("/api/admin/register-game", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletAddress: connectedAddress,
+          contractAddress: regContractAddress,
+          gameName: regGameName,
+          genre: regGenre,
+          description: regDescription,
+          signature,
+          message,
+          timestamp,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      notification.success(`✅ "${data.product.name}" registered! Product ID: ${data.product.product_id}`);
+      setRegStatus("");
+      setRegContractAddress("");
+      setRegGameName("");
+      setRegGenre("");
+      setRegDescription("");
+    } catch (error: any) {
+      if (error?.code === 4001 || error?.message?.includes("rejected")) {
+        notification.error("Signature rejected");
+      } else {
+        notification.error(error.message || "Registration failed");
+      }
+      setRegStatus("");
+    } finally {
+      setRegLoading(false);
+    }
+  }
+
   function downloadHashes() {
     const content = keys.map((k, i) => `${i + 1},${k.commitmentHash}`).join("\n");
     const blob = new Blob([`Index,Commitment Hash\n${content}`], { type: "text/csv" });
@@ -99,6 +206,7 @@ export default function AdminPage() {
     a.href = url;
     a.download = `commitment-hashes-batch${batchId ?? "unknown"}-${Date.now()}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   }
 
   if (!isConnected) {
@@ -107,6 +215,15 @@ export default function AdminPage() {
         <h1 className="text-3xl font-bold">🔐 Admin Dashboard</h1>
         <p className="text-base-content/70">Connect the contract owner wallet to continue</p>
         <ConnectButton />
+      </div>
+    );
+  }
+
+  if (isConnected && !contractOwner) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <span className="loading loading-spinner loading-lg" />
+        <p className="text-base-content/70">Verifying ownership...</p>
       </div>
     );
   }
@@ -136,7 +253,112 @@ export default function AdminPage() {
 
       <div className="card bg-base-200 shadow-xl mb-8">
         <div className="card-body">
+          <h2 className="card-title">Register Game Contract</h2>
+          <p className="text-sm text-base-content/70">
+            Use this for the initial deployment contract (which has no DB entry) or for any new SoulKey deployed via the
+            Foundry script.
+          </p>
+
+          <div className="form-control w-full">
+            <label className="label">
+              <span className="label-text font-semibold">SoulKey Contract Address</span>
+            </label>
+            <input
+              type="text"
+              className="input input-bordered font-mono w-full"
+              placeholder="0x..."
+              value={regContractAddress}
+              onChange={e => setRegContractAddress(e.target.value)}
+              disabled={regLoading}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <div className="form-control w-full">
+              <label className="label">
+                <span className="label-text font-semibold">Game Name *</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="e.g. Fallout"
+                value={regGameName}
+                onChange={e => setRegGameName(e.target.value)}
+                disabled={regLoading}
+              />
+            </div>
+            <div className="form-control w-full">
+              <label className="label">
+                <span className="label-text font-semibold">Genre</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="e.g. RPG, FPS..."
+                value={regGenre}
+                onChange={e => setRegGenre(e.target.value)}
+                disabled={regLoading}
+              />
+            </div>
+          </div>
+
+          <div className="form-control w-full mt-2">
+            <label className="label">
+              <span className="label-text font-semibold">Description</span>
+            </label>
+            <textarea
+              className="textarea textarea-bordered w-full"
+              placeholder="Short game description..."
+              rows={2}
+              value={regDescription}
+              onChange={e => setRegDescription(e.target.value)}
+              disabled={regLoading}
+            />
+          </div>
+
+          {regStatus && (
+            <div className="alert alert-info mt-2 py-2" role="status" aria-live="polite">
+              <span className="loading loading-spinner loading-sm" />
+              <span className="text-sm">{regStatus}</span>
+            </div>
+          )}
+
+          <div className="card-actions justify-end mt-4">
+            <button
+              className="btn btn-secondary"
+              onClick={registerGame}
+              disabled={regLoading || !regContractAddress || !regGameName}
+            >
+              {regLoading ? (
+                <>
+                  <span className="loading loading-spinner" />
+                  Registering...
+                </>
+              ) : (
+                <>📋 Register Game</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card bg-base-200 shadow-xl mb-8">
+        <div className="card-body">
           <h2 className="card-title">Generate New Batch</h2>
+
+          <div className="form-control w-full">
+            <label className="label">
+              <span className="label-text font-semibold">SoulKey Contract Address</span>
+            </label>
+            <input
+              type="text"
+              className="input input-bordered font-mono w-full"
+              placeholder="0x... (defaults to deployed contract)"
+              value={genContractAddress}
+              onChange={e => setGenContractAddress(e.target.value)}
+              disabled={loading}
+            />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="form-control w-full">
@@ -151,6 +373,7 @@ export default function AdminPage() {
                 className="input input-bordered w-full"
                 value={quantity}
                 onChange={e => setQuantity(parseInt(e.target.value) || 1)}
+                disabled={loading}
               />
             </div>
 
@@ -165,6 +388,7 @@ export default function AdminPage() {
                 placeholder="e.g. Launch batch, promo batch..."
                 value={batchNotes}
                 onChange={e => setBatchNotes(e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -183,6 +407,10 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+
+          <label className="label">
+            <span className="label-text-alt text-warning">⚠️ Product must be registered before generating keys</span>
+          </label>
 
           <div className="card-actions justify-end mt-4">
             <button className="btn btn-primary" onClick={generateKeys} disabled={loading}>

@@ -1,17 +1,34 @@
-// SPDX-License-Identifier: AGPL-3.0-only
 // packages/nextjs/app/api/mint/link-token/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-import { createMint } from "~~/utils/db";
+import { reserveAndMint } from "~~/utils/db";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
 
-    const { cdkeyId, tokenId, walletAddress, txHash, blockNumber, paymentToken, paymentAmount } = body;
+    const {
+      tokenId,
+      walletAddress,
+      txHash,
+      blockNumber,
+      paymentToken,
+      paymentAmount,
+      contractAddress,
+      commitmentHash,
+    } = body;
 
-    if (!cdkeyId || !tokenId || !walletAddress || !txHash || !blockNumber || !paymentToken || !paymentAmount) {
+    if (
+      !tokenId ||
+      !walletAddress ||
+      !txHash ||
+      !blockNumber ||
+      !paymentToken ||
+      !paymentAmount ||
+      !contractAddress ||
+      !commitmentHash
+    ) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
@@ -20,19 +37,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid tokenId" }, { status: 400 });
     }
 
-    // INSERT into mints table — replaces the old UPDATE cdkeys SET token_id = ...
-    await createMint({
-      cdkeyId: Number(cdkeyId),
+    // Atomic: locks the row, inserts mint record, commits — no race condition
+    await reserveAndMint({
+      contractAddress,
+      commitmentHash,
       tokenId: BigInt(tokenId),
       mintedBy: walletAddress,
       mintTxHash: txHash,
       blockNumber: BigInt(blockNumber),
-      paymentToken, // address(0) for ETH, ERC-20 address for USDT/USDC
-      paymentAmount, // raw wei / token units as string
+      paymentToken,
+      paymentAmount,
     });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    // "No CD keys available" from the transaction will surface here
     console.error("Link Token API error:", error);
     return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
   }

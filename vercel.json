@@ -1,4 +1,10 @@
 {
   "buildCommand": "cd packages/nextjs && yarn build",
-  "outputDirectory": "packages/nextjs/.next"
+  "outputDirectory": "packages/nextjs/.next",
+  "crons": [
+    {
+      "path": "/api/cron/release-expired-reserves",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }

@@ -101,6 +101,21 @@ Refactoring the code:
 
 - MasterKeyVault and SoulKey contracts are bugfree, tested and ready for deployment. Whoa, the refund function made the contracts exponencially harder to develop and fix -- so much so that there are two contracts now. One for the NFT handling and one for fund management.
 
+02/02/26
+
+- I've redone the frontend and all the api/route.ts
+
+03/02/26
+
+- Deployed the contracts
+- Normalized and added the tables into the neon database
+
+04/03/26
+
+- Reinitialized the project on my PC and redeployed the contracts (I can't git push from laptop without a deployment, and can't switch the owner without the copying and adding the private keys into wsl).
+- Fixing the multiple contracts. As games will be added so will the contract addresses in vercel environment. I'll track them in the DB under products/contract_address and reference the addresses from there (for the frontend). Each registerGame must add an entry into products table.
+- Fixed multiple issues.
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
