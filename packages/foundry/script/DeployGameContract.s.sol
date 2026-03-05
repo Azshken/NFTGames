@@ -24,14 +24,14 @@ import {MasterKeyVault} from "../contracts/MasterKeyVault.sol";
  */
 contract DeployGameContract is Script {
     function run() external {
-        address vaultAddress = vm.envAddress("VAULT_ADDRESS");
+        address vaultAddress = vm.envAddress("NEXT_PUBLIC_DEFAULT_CONTRACT_ADDRESS");
         string memory name = vm.envString("GAME_NAME");
         string memory symbol = vm.envString("GAME_SYMBOL");
         uint64 supply = uint64(vm.envUint("GAME_SUPPLY"));
         string memory baseURI = vm.envString("BASE_TOKEN_URI");
 
         // Sanity checks before broadcasting
-        require(vaultAddress != address(0), "VAULT_ADDRESS not set");
+        require(vaultAddress != address(0), "NEXT_PUBLIC_DEFAULT_CONTRACT_ADDRESS not set");
         require(supply > 0, "GAME_SUPPLY must be > 0");
 
         vm.startBroadcast();
