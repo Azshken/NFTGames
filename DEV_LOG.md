@@ -116,6 +116,10 @@ Refactoring the code:
 - Fixing the multiple contracts. As games will be added so will the contract addresses in vercel environment. I'll track them in the DB under products/contract_address and reference the addresses from there (for the frontend). Each registerGame must add an entry into products table.
 - Fixed multiple issues.
 
+05/03/26
+
+- Testing
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
