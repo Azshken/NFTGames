@@ -94,7 +94,7 @@ contract DeployContracts is Script {
         // vault.registerGame(address(soulKey));
         // console.log("SoulKey registered in vault.");
 
-        // vm.stopBroadcast();
+        vm.stopBroadcast();
 
         // ── Summary ───────────────────────────────────────────────────────────
         console.log("---");
