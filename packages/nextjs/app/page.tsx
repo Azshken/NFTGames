@@ -2,283 +2,411 @@
 // packages/nextjs/app/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Address } from "@scaffold-ui/components";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NextPage } from "next";
-import { decodeEventLog, formatEther, parseAbi, parseAbiItem } from "viem";
-import { hardhat } from "viem/chains";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { decodeEventLog, formatEther } from "viem";
+import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
 
-import {
-  useDeployedContractInfo,
-  useScaffoldReadContract,
-  useScaffoldWriteContract,
-  useTargetNetwork,
-} from "~~/hooks/scaffold-eth";
+import { SOULKEY_ABI, VAULT_ABI } from "~~/utils/abis";
 import { notification } from "~~/utils/scaffold-eth";
 
-const GAME_IMAGE =
-  "https://purple-historical-sawfish-33.mypinata.cloud/ipfs/bafybeiaiedjkix3n3qx6il3lwj2ye7y5fkbaytu7m4q6yxlde5uqrsgztm";
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-// MasterKeyVault ABI — only what the frontend needs
-const VAULT_ABI = parseAbi([
-  "function isRefundable(address soulKeyContract, uint256 tokenId) view returns (bool)",
-  "function paymentRecords(address soulKeyContract, uint256 tokenId) view returns (address paymentToken, uint48 paidAt, uint8 status, uint256 amount, address payer)",
-  "function processRefund(address soulKeyContract, uint256 tokenId, string calldata reason) nonpayable",
-  "event RefundIssued(address indexed soulKeyContract, uint256 indexed tokenId, address indexed recipient, address paymentToken, uint256 refundedAmount, uint256 feeRetained, string reason)",
-  "function refundFeeBps() view returns (uint256)",
-]);
+const REFUND_WINDOW_SECS = 14 * 24 * 60 * 60;
 
-const REFUND_WINDOW_SECS = 14 * 24 * 60 * 60; // 14 days in seconds
+// NEXT_PUBLIC_ vars are inlined by Next.js at build time.
+// Reading once at module level avoids process.env access inside every render cycle.
+const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS as `0x${string}` | undefined;
+
+// Named constant avoids three independent string literals scattered through the file.
+// A typo in any one of them creates a bug that TypeScript cannot catch (type is string).
+// Using viem's `zeroAddress` import is an equally valid alternative.
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Product = {
+  productid: number;
+  contractaddress: `0x${string}`;
+  name: string;
+  genre: string;
+  description: string;
+};
+
+// Mirrors MasterKeyVault.PaymentRecord:
+//   (address paymentToken, uint48 paidAt, uint8 status, uint256 amount, address payer)
+// If the Solidity struct field order changes, update this type and the paidAt index below —
+// the compiler will surface every usage that breaks.
+type PaymentRecord = readonly [`0x${string}`, bigint, number, bigint, `0x${string}`];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Ensures a hex string is 0x-prefixed AND is exactly 32 bytes (64 hex chars).
+ * Throws a descriptive error if the server returned a malformed value —
+ * without this guard the failure surfaces as an opaque viem ABI encoding error
+ * that gives the user no actionable information.
+ */
+function toBytes32(hex: string): `0x${string}` {
+  const normalized = (hex.startsWith("0x") ? hex : "0x" + hex) as `0x${string}`;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(normalized)) {
+    throw new Error(
+      `Server returned a malformed 32-byte hash: "${normalized}". ` +
+        `Expected 0x followed by exactly 64 hex characters.`,
+    );
+  }
+  return normalized;
+}
+
+// Second helper. Variable-lenght bytes that validates hex format without
+// constraining length:
+function toHexBytes(hex: string): `0x${string}` {
+  const normalized = (hex.startsWith("0x") ? hex : "0x" + hex) as `0x${string}`;
+  if (!/^0x[0-9a-fA-F]*$/.test(normalized)) throw new Error(`Server returned a malformed hex value`);
+  return normalized;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const Home: NextPage = () => {
   const { address: connectedAddress } = useAccount();
-  const { targetNetwork } = useTargetNetwork();
   const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
 
-  const [selectedPayment, setSelectedPayment] = useState<"ETH" | "USDT" | "USDC">("ETH");
-  const [selectedTokenId, setSelectedTokenId] = useState<number>(0);
+  // ─── Products ──────────────────────────────────────────────────────────────
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
+
+  const contractAddress = selectedProduct?.contractaddress;
+
+  // Extracted as useCallback so the Retry button can call it directly without a
+  // full page reload, which would destroy the user's wallet connection state.
+  const loadProducts = useCallback(() => {
+    setProductsLoading(true);
+    setProductsError(null);
+    fetch("/api/products")
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.products.length > 0) {
+          setProducts(d.products);
+          setSelectedProduct(d.products[0]);
+        } else {
+          setProductsError(d.success ? "No games are available at this time." : (d.error ?? "Failed to load games."));
+        }
+      })
+      .catch(() => setProductsError("Failed to load games. Check your connection and try again."))
+      .finally(() => setProductsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // ─── On-chain reads ────────────────────────────────────────────────────────
+  //
+  // Conditional contracts array — TypeScript only narrows contractAddress to
+  // non-undefined inside an inline ternary condition, not through a derived boolean.
+  //
+  // keepPreviousData is intentionally omitted: showing a stale price from a previous
+  // game while the new one loads would allow minting at the wrong price.
+
+  const { data: contractReads, isLoading: contractLoading } = useReadContracts({
+    contracts: contractAddress
+      ? ([
+          { address: contractAddress, abi: SOULKEY_ABI, functionName: "mintPriceETH" as const },
+          { address: contractAddress, abi: SOULKEY_ABI, functionName: "mintPriceUSD" as const },
+          { address: contractAddress, abi: SOULKEY_ABI, functionName: "totalSupply" as const },
+          { address: contractAddress, abi: SOULKEY_ABI, functionName: "maxSupply" as const },
+        ] as const)
+      : [],
+    query: { enabled: !!contractAddress, refetchInterval: 15_000 },
+  });
+
+  const mintPriceETH = contractReads?.[0]?.result as bigint | undefined;
+  const mintPriceUSD = contractReads?.[1]?.result as bigint | undefined;
+  const totalSupply = contractReads?.[2]?.result as bigint | undefined;
+  const maxSupply = contractReads?.[3]?.result as bigint | undefined;
+
+  // ─── Token state ───────────────────────────────────────────────────────────
+
   const [ownedTokens, setOwnedTokens] = useState<number[]>([]);
-  const [revealedKey, setRevealedKey] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [mintingStep, setMintingStep] = useState<string>("");
-  const [refundReason, setRefundReason] = useState<string>("");
-  const [showRefundInput, setShowRefundInput] = useState(false);
-  const [isRefundable, setIsRefundable] = useState(false);
-  const [refundWindowExpiry, setRefundWindowExpiry] = useState<Date | null>(null);
+  const [selectedTokenId, setSelectedTokenId] = useState<number>(0);
+  const [tokensLoading, setTokensLoading] = useState(false);
 
-  // ============ Contract Reads (SoulKey) ============
-  const { data: mintPriceETH } = useScaffoldReadContract({
-    contractName: "SoulKey",
-    functionName: "mintPriceETH",
-  });
-  const { data: mintPriceUSD } = useScaffoldReadContract({
-    contractName: "SoulKey",
-    functionName: "mintPriceUSD",
-  });
-  const { data: totalSupply } = useScaffoldReadContract({
-    contractName: "SoulKey",
-    functionName: "totalSupply",
-  });
-  const { data: maxSupply } = useScaffoldReadContract({
-    contractName: "SoulKey",
-    functionName: "maxSupply",
-  });
-  // SoulKey has getClaimTimestamp(tokenId) — isClaimed = timestamp > 0
-  const { data: claimTimestamp, refetch: refetchClaimTimestamp } = useScaffoldReadContract({
-    contractName: "SoulKey",
+  // staleTime:0 ensures value is always re-fetched rather than served from cache.
+  // wagmi v2 accepts address:undefined when enabled:false — no ! assertion needed.
+  const { data: claimTimestamp, refetch: refetchClaimTimestamp } = useReadContract({
+    address: contractAddress,
+    abi: SOULKEY_ABI,
     functionName: "getClaimTimestamp",
     args: [BigInt(selectedTokenId || 0)],
-    query: { enabled: selectedTokenId > 0 },
+    query: { enabled: !!contractAddress && selectedTokenId > 0, staleTime: 0 },
   });
-  const isClaimed = claimTimestamp !== undefined && claimTimestamp > 0n;
+  const isClaimed = typeof claimTimestamp === "bigint" && claimTimestamp > 0n;
 
-  // Read vault address from SoulKey (immutable public field)
-  const { data: vaultAddress } = useScaffoldReadContract({
-    contractName: "SoulKey",
-    functionName: "vault",
+  // Refund status
+  // Inline ternary is required — TypeScript control flow does NOT narrow through a
+  // derived boolean variable (e.g. const shouldFetch = !!VAULT_ADDRESS && ...).
+  // Only an inline condition propagates the narrowing into the then-branch.
+  const { data: refundReads } = useReadContracts({
+    contracts:
+      VAULT_ADDRESS && contractAddress && selectedTokenId > 0 && !isClaimed
+        ? ([
+            {
+              address: VAULT_ADDRESS,
+              abi: VAULT_ABI,
+              functionName: "isRefundable" as const,
+              args: [contractAddress, BigInt(selectedTokenId)] as const,
+            },
+            {
+              address: VAULT_ADDRESS,
+              abi: VAULT_ABI,
+              functionName: "paymentRecords" as const,
+              args: [contractAddress, BigInt(selectedTokenId)] as const,
+            },
+          ] as const)
+        : [],
+    // No query.enabled needed — empty array already prevents any RPC calls.
   });
 
-  const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SoulKey" });
-  const contractAddress = deployedContractData?.address;
+  const isRefundable = (refundReads?.[0]?.result as boolean | undefined) ?? false;
 
-  // Raw wagmi write for vault's processRefund (vault is not a scaffold contract)
-  const { writeContractAsync: writeVault } = useWriteContract();
+  // paidAt is typed as bigint | undefined — honest about the undefined case.
+  // Previously the code destructured a fallback [] cast as PaymentRecord, which
+  // typed paidAt as bigint even when the value was actually undefined at runtime.
+  const paymentRecord = refundReads?.[1]?.result as PaymentRecord | undefined;
+  const paidAt: bigint | undefined = paymentRecord?.[1];
 
-  // ============ Contract Writes (SoulKey) ============
-  const { writeContractAsync: writeContract } = useScaffoldWriteContract({
-    contractName: "SoulKey",
-  });
+  const refundWindowExpiry =
+    paidAt !== undefined && paidAt > 0n ? new Date(Number(paidAt + BigInt(REFUND_WINDOW_SECS)) * 1000) : null;
 
-  // Reset stale state when wallet changes
+  const refundWindowHoursLeft = refundWindowExpiry
+    ? Math.max(0, Math.floor((refundWindowExpiry.getTime() - Date.now()) / 3_600_000))
+    : null;
+
+  // ─── Owned tokens ─────────────────────────────────────────────────────────
+  //
+  // Uses /api/tokens (DB query) instead of getLogs(fromBlock:0n).
+  // getLogs with fromBlock:0 breaks on mainnet — most RPC providers cap log queries
+  // to ~2000 blocks per request, silently returning empty results on long-running contracts.
+
+  const fetchOwnedTokens = useCallback(async () => {
+    if (!connectedAddress || !contractAddress) {
+      setOwnedTokens([]);
+      setSelectedTokenId(0);
+      return;
+    }
+    setTokensLoading(true);
+    try {
+      const d = await fetch(`/api/tokens?wallet=${connectedAddress}&contract=${contractAddress}`).then(r => r.json());
+
+      if (d.success) {
+        setOwnedTokens(d.tokens);
+        // Preserve selection if still valid; otherwise fall back to first token.
+        setSelectedTokenId(prev => (d.tokens.includes(prev) ? prev : (d.tokens[0] ?? 0)));
+      } else {
+        notification.error(`Could not load your tokens: ${d.error ?? "unknown error"}`);
+      }
+    } catch {
+      notification.error("Failed to load your tokens. Please refresh.");
+    } finally {
+      setTokensLoading(false);
+    }
+  }, [connectedAddress, contractAddress]);
+
+  // Initial fetch + re-fetch when wallet or game changes.
+  // Also resets prevSupplyRef so the supply-change effect below does not double-fire
+  // on the first poll tick after a game switch.
+  const prevSupplyRef = useRef<bigint | undefined>(undefined);
   useEffect(() => {
-    setOwnedTokens([]);
-    setSelectedTokenId(0);
+    prevSupplyRef.current = undefined;
+    fetchOwnedTokens();
+  }, [fetchOwnedTokens]);
+
+  // Re-fetch only when totalSupply actually increases (new mint detected on-chain).
+  // Avoids hitting the DB on every 15s poll tick regardless of whether anything changed.
+  useEffect(() => {
+    if (totalSupply === undefined) return;
+    if (prevSupplyRef.current !== undefined && totalSupply > prevSupplyRef.current) {
+      fetchOwnedTokens();
+    }
+    prevSupplyRef.current = totalSupply;
+  }, [totalSupply, fetchOwnedTokens]);
+
+  // ─── UI state ──────────────────────────────────────────────────────────────
+
+  const [selectedPayment, setSelectedPayment] = useState<"ETH" | "USDT" | "USDC">("ETH");
+  const [revealedKey, setRevealedKey] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [mintingStep, setMintingStep] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [showRefundInput, setShowRefundInput] = useState(false);
+
+  // Reset UI-only state on game or token switch.
+  // Data state is managed by wagmi hooks and fetchOwnedTokens — not reset here.
+  useEffect(() => {
     setRevealedKey("");
-  }, [connectedAddress]);
-
-  // Reset refund UI when token changes
-  useEffect(() => {
-    setIsRefundable(false);
-    setRefundWindowExpiry(null);
     setShowRefundInput(false);
+  }, [contractAddress]);
+  useEffect(() => {
     setRevealedKey("");
+    setShowRefundInput(false);
   }, [selectedTokenId]);
 
-  // ============ Fetch Refund Status ============
-  useEffect(() => {
-    const fetchRefundStatus = async () => {
-      if (!publicClient || !vaultAddress || !contractAddress || !selectedTokenId) return;
-      try {
-        const [refundable, record] = await Promise.all([
-          publicClient.readContract({
-            address: vaultAddress as `0x${string}`,
-            abi: VAULT_ABI,
-            functionName: "isRefundable",
-            args: [contractAddress as `0x${string}`, BigInt(selectedTokenId)],
-          }),
-          publicClient.readContract({
-            address: vaultAddress as `0x${string}`,
-            abi: VAULT_ABI,
-            functionName: "paymentRecords",
-            args: [contractAddress as `0x${string}`, BigInt(selectedTokenId)],
-          }),
-        ]);
-        setIsRefundable(refundable as boolean);
-        const paidAt = (record as any)[1] as bigint;
-        if (paidAt > 0n) {
-          setRefundWindowExpiry(new Date(Number(paidAt + BigInt(REFUND_WINDOW_SECS)) * 1000));
-        }
-      } catch {
-        // Token may not have a payment record yet (e.g. just minted, not yet confirmed)
-      }
-    };
-    if (selectedTokenId > 0 && !isClaimed) fetchRefundStatus();
-  }, [selectedTokenId, isClaimed, publicClient, vaultAddress, contractAddress]);
+  // ─── Mint ─────────────────────────────────────────────────────────────────
 
-  // ============ Fetch Owned Tokens ============
-  useEffect(() => {
-    const fetchOwnedTokens = async () => {
-      if (!connectedAddress || !publicClient || !totalSupply || !contractAddress) return;
-      try {
-        const logs = await publicClient.getLogs({
-          address: contractAddress,
-          event: parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"),
-          fromBlock: 0n,
-          toBlock: "latest",
-        });
-        const tokens: number[] = [];
-        for (const log of logs) {
-          if (log.args?.to?.toLowerCase() === connectedAddress.toLowerCase()) {
-            const tokenId = log.args?.tokenId;
-            if (tokenId !== undefined) tokens.push(Number(tokenId));
-          }
-        }
-        setOwnedTokens(tokens);
-        if (tokens.length > 0) setSelectedTokenId(tokens[0]);
-      } catch (error) {
-        console.error("Error fetching owned tokens:", error);
-      }
-    };
-    fetchOwnedTokens();
-  }, [connectedAddress, totalSupply, publicClient, contractAddress]);
-
-  // ============ Mint ============
   const handleMint = async () => {
     if (!connectedAddress || !contractAddress) {
       notification.error("Please connect your wallet");
       return;
     }
+    // mintPriceETH === undefined means data hasn't loaded yet — NOT the same as 0n.
+    // Checking === undefined correctly handles free-mint contracts (mintPriceETH === 0n).
+    if (mintPriceETH === undefined || mintPriceUSD === undefined) {
+      notification.error("Contract data is still loading — please wait a moment");
+      return;
+    }
+    // Explicit guard — no ! assertion. publicClient is undefined during SSR or if wagmi
+    // is misconfigured; a runtime crash here would lose the user's committed key reservation.
+    if (!publicClient) {
+      notification.error("No RPC client available — please refresh the page");
+      return;
+    }
+
     setLoading(true);
     setMintingStep("Getting commitment hash from database...");
     try {
-      // Step 1: Get commitment hash for this product/contract
-      const commitmentRes = await fetch("/api/mint/get-commitment", {
+      const commitRes = await fetch("/api/mint/get-commitment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: connectedAddress, contractAddress }),
       });
-      const commitmentData = await commitmentRes.json();
-      if (!commitmentData.success) throw new Error(commitmentData.error || "Failed to get commitment hash");
+      const commitData = await commitRes.json();
+      if (!commitData.success) throw new Error(commitData.error ?? "Failed to get commitment hash");
 
-      const commitmentHashBytes32 = (
-        commitmentData.commitmentHash.startsWith("0x")
-          ? commitmentData.commitmentHash
-          : `0x${commitmentData.commitmentHash}`
-      ) as `0x${string}`;
+      // toBytes32 validates that the server returned a well-formed 32-byte hash.
+      // Without this check a malformed hash from the server produces an opaque
+      // viem ABI encoding error with no actionable message for the user.
+      const commitHashBytes32 = toBytes32(commitData.commitmentHash);
 
       setMintingStep(`Minting NFT with ${selectedPayment}...`);
 
-      // Step 2: Mint on-chain
-      let txHash;
+      // Explicit if/else branches are required here.
+      // wagmi's writeContractAsync has strict generic types where functionName must be a
+      // literal type inferred from the ABI. A computed string variable widens to string
+      // and produces a TypeScript compile error.
+      let txHash: `0x${string}`;
       if (selectedPayment === "ETH") {
-        txHash = await writeContract({
+        txHash = await writeContractAsync({
+          address: contractAddress,
+          abi: SOULKEY_ABI,
           functionName: "mintWithETH",
-          args: [commitmentHashBytes32],
+          args: [commitHashBytes32],
           value: mintPriceETH,
         });
       } else if (selectedPayment === "USDT") {
-        txHash = await writeContract({ functionName: "mintWithUSDT", args: [commitmentHashBytes32] });
+        txHash = await writeContractAsync({
+          address: contractAddress,
+          abi: SOULKEY_ABI,
+          functionName: "mintWithUSDT",
+          args: [commitHashBytes32],
+        });
       } else {
-        txHash = await writeContract({ functionName: "mintWithUSDC", args: [commitmentHashBytes32] });
+        txHash = await writeContractAsync({
+          address: contractAddress,
+          abi: SOULKEY_ABI,
+          functionName: "mintWithUSDC",
+          args: [commitHashBytes32],
+        });
       }
 
       setMintingStep("Waiting for transaction confirmation...");
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
-      if (!receipt) throw new Error("Transaction receipt not found");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-      // Step 3: Extract tokenId from Transfer event and paymentToken from NFTMinted event
+      // Decode using SOULKEY_ABI — no inline parseAbi, consistent with abis.ts.
       let tokenId: bigint | undefined;
-      let mintedPaymentToken = "0x0000000000000000000000000000000000000000";
-
+      let mintedPaymentToken: string = ZERO_ADDRESS;
       for (const log of receipt.logs) {
         try {
-          const decoded = decodeEventLog({
-            abi: [parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)")],
+          const d = decodeEventLog({
+            abi: SOULKEY_ABI,
+            eventName: "Transfer",
             data: log.data,
             topics: log.topics,
           });
-          if (decoded.args.from === "0x0000000000000000000000000000000000000000") {
-            tokenId = decoded.args.tokenId;
-          }
-        } catch {
-          /* not a Transfer log */
-        }
-
+          if (d.args.from === ZERO_ADDRESS) tokenId = d.args.tokenId;
+        } catch {}
         try {
-          const decoded = decodeEventLog({
-            abi: [
-              parseAbiItem(
-                "event NFTMinted(uint256 indexed tokenId, address indexed minter, address indexed paymentToken, bytes32 commitmentHash)",
-              ),
-            ],
+          const d = decodeEventLog({
+            abi: SOULKEY_ABI,
+            eventName: "NFTMinted",
             data: log.data,
             topics: log.topics,
           });
-          mintedPaymentToken = decoded.args.paymentToken as string;
-        } catch {
-          /* not an NFTMinted log */
-        }
+          mintedPaymentToken = d.args.paymentToken as string;
+        } catch {}
       }
-
       if (!tokenId) throw new Error("Could not extract token ID from transaction");
+      const mintedTokenId = tokenId; // const — type is bigint, never re-widened across awaits
 
       setMintingStep("Linking token to database...");
-
-      // Step 4: Record mint in database — inserts into `mints` table
-      const paymentAmount = selectedPayment === "ETH" ? mintPriceETH!.toString() : mintPriceUSD!.toString();
-      await fetch("/api/mint/link-token", {
+      const linkRes = await fetch("/api/mint/link-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tokenId: tokenId.toString(),
+          tokenId: mintedTokenId.toString(),
           walletAddress: connectedAddress,
           txHash,
           blockNumber: receipt.blockNumber.toString(),
           paymentToken: mintedPaymentToken,
-          paymentAmount,
+          paymentAmount: (selectedPayment === "ETH" ? mintPriceETH : mintPriceUSD).toString(),
           contractAddress,
-          commitmentHash: commitmentData.commitmentHash, // the key lookup anchor
+          commitmentHash: commitData.commitmentHash,
         }),
       });
+      const linkData = await linkRes.json();
 
-      setSelectedTokenId(Number(tokenId));
-      setOwnedTokens(prev => [...prev, Number(tokenId)]);
-      notification.success(`NFT minted! Token #${tokenId} — now claim your CD key.`);
-      setMintingStep("");
+      if (!linkData.success) {
+        // The on-chain mint succeeded — the user's NFT and payment are safe.
+        // Only the DB record failed. Do NOT call fetchOwnedTokens() here:
+        // the DB doesn't have this token so the query would return without it,
+        // leaving the user unable to access their NFT for the entire session
+        // (and even after a refresh, since the DB remains inconsistent).
+        //
+        // Instead, inject the token optimistically — its existence was confirmed
+        // from the on-chain receipt above, not assumed. This is an intentional
+        // exception to the no-optimistic-update policy.
+        notification.warning(
+          `NFT minted on-chain (tx: ${txHash.slice(0, 10)}…) but the server record failed ` +
+            `— please contact support with your transaction hash.`,
+        );
+        setOwnedTokens(prev => (prev.includes(Number(mintedTokenId)) ? prev : [...prev, Number(mintedTokenId!)]));
+        setSelectedTokenId(Number(mintedTokenId));
+        return;
+      }
+
+      // DB is now consistent — fetch authoritative state.
+      // No optimistic update: avoids a race condition where a polling-triggered
+      // fetchOwnedTokens fires before link-token completes and wipes the new token.
+      await fetchOwnedTokens();
+      setSelectedTokenId(Number(mintedTokenId));
+      notification.success(`NFT minted! Token #${mintedTokenId} — now claim your CD key.`);
     } catch (error: any) {
-      console.error("Mint error:", error);
+      console.error("Mint error", error);
       notification.error(`Failed to mint: ${error.message}`);
-      setMintingStep("");
     } finally {
       setLoading(false);
+      setMintingStep("");
     }
   };
 
-  // ============ Claim CD Key ============
+  // ─── Claim CD Key ─────────────────────────────────────────────────────────
+
   const handleClaimCDKey = async () => {
-    if (!connectedAddress || !selectedTokenId) {
+    if (!connectedAddress || !selectedTokenId || !contractAddress) {
       notification.error("Please select a token");
       return;
     }
@@ -286,6 +414,11 @@ const Home: NextPage = () => {
       notification.error("This token's CD key has already been claimed");
       return;
     }
+    if (!publicClient) {
+      notification.error("No RPC client available — please refresh the page");
+      return;
+    }
+
     setLoading(true);
     setMintingStep("Requesting encryption public key from MetaMask...");
     try {
@@ -306,26 +439,23 @@ const Home: NextPage = () => {
         }),
       });
       const redeemData = await redeemRes.json();
-      if (!redeemData.success) throw new Error(redeemData.error || "Failed to retrieve CD key");
+      if (!redeemData.success) throw new Error(redeemData.error ?? "Failed to retrieve CD key");
 
       setMintingStep("Claiming CD key on blockchain...");
-      const commitmentHashBytes32 = (
-        redeemData.commitmentHash.startsWith("0x") ? redeemData.commitmentHash : `0x${redeemData.commitmentHash}`
-      ) as `0x${string}`;
-      const encryptedKeyBytes = (
-        redeemData.encryptedCDKey.startsWith("0x") ? redeemData.encryptedCDKey : `0x${redeemData.encryptedCDKey}`
-      ) as `0x${string}`;
-
-      const txHash = await writeContract({
+      const txHash = await writeContractAsync({
+        address: contractAddress,
+        abi: SOULKEY_ABI,
         functionName: "claimCdKey",
-        args: [BigInt(selectedTokenId), commitmentHashBytes32, encryptedKeyBytes],
+        args: [
+          BigInt(selectedTokenId),
+          toBytes32(redeemData.commitmentHash), // bytes32 — fixed length ✓
+          toHexBytes(redeemData.encryptedCDKey), // bytes   — variable length ✓
+        ],
       });
 
       setMintingStep("Confirming redemption...");
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
-      if (!receipt) throw new Error("Receipt not found");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-      // Step 6: Confirm in DB — records in redemptions + reserve_releases tables
       await fetch("/api/redeem/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -339,43 +469,45 @@ const Home: NextPage = () => {
 
       await refetchClaimTimestamp();
       notification.success("CD key claimed! NFT is now soulbound. Click 'Reveal CD Key' to decrypt.");
-      setMintingStep("");
     } catch (error: any) {
-      console.error("Claim error:", error);
+      console.error("Claim error", error);
       notification.error(`Failed to claim: ${error.message}`);
-      setMintingStep("");
     } finally {
       setLoading(false);
+      setMintingStep("");
     }
   };
 
-  // ============ Reveal CD Key ============
+  // ─── Reveal CD Key ────────────────────────────────────────────────────────
+
   const handleRevealCDKey = async () => {
-    if (!connectedAddress || !selectedTokenId || !contractAddress) return;
+    if (!connectedAddress || !selectedTokenId || !contractAddress) {
+      notification.error("Please connect your wallet and select a token");
+      return;
+    }
     if (!isClaimed) {
       notification.error("CD key hasn't been claimed yet");
       return;
     }
+    if (!publicClient) {
+      notification.error("No RPC client available — please refresh the page");
+      return;
+    }
+
     setLoading(true);
     setMintingStep("Retrieving encrypted CD key from blockchain...");
     try {
-      const encryptedBytes = (await publicClient?.readContract({
-        address: contractAddress as `0x${string}`,
-        abi: [
-          {
-            inputs: [{ name: "tokenId", type: "uint256" }],
-            name: "getEncryptedCDKey",
-            outputs: [{ name: "", type: "bytes" }],
-            stateMutability: "view",
-            type: "function",
-          },
-        ],
+      // No `account` field — view functions do not use msg.sender; the field has no effect.
+      const encryptedBytes = (await publicClient.readContract({
+        address: contractAddress,
+        abi: SOULKEY_ABI,
         functionName: "getEncryptedCDKey",
         args: [BigInt(selectedTokenId)],
-        account: connectedAddress,
-      })) as `0x${string}` | undefined;
+      })) as `0x${string}`;
 
-      if (!encryptedBytes) throw new Error("No encrypted CD key found on-chain");
+      if (!encryptedBytes || encryptedBytes === "0x") {
+        throw new Error("No encrypted CD key found on-chain");
+      }
 
       setMintingStep("Decrypting with your MetaMask private key...");
       const decrypted = await (window as any).ethereum.request({
@@ -384,19 +516,19 @@ const Home: NextPage = () => {
       });
       setRevealedKey(decrypted);
       notification.success("CD key revealed successfully!");
-      setMintingStep("");
     } catch (error: any) {
-      console.error("Reveal error:", error);
+      console.error("Reveal error", error);
       notification.error(`Failed to reveal: ${error.message}`);
-      setMintingStep("");
     } finally {
       setLoading(false);
+      setMintingStep("");
     }
   };
 
-  // ============ Refund ============
+  // ─── Refund ───────────────────────────────────────────────────────────────
+
   const handleRefund = async () => {
-    if (!connectedAddress || !selectedTokenId || !contractAddress || !vaultAddress) {
+    if (!connectedAddress || !selectedTokenId || !contractAddress || !VAULT_ADDRESS) {
       notification.error("Wallet or contract not ready");
       return;
     }
@@ -404,24 +536,28 @@ const Home: NextPage = () => {
       notification.error("This token is not refundable");
       return;
     }
+    if (!publicClient) {
+      notification.error("No RPC client available — please refresh the page");
+      return;
+    }
+
     setLoading(true);
     setMintingStep("Processing refund on blockchain...");
     try {
-      const txHash = await writeVault({
-        address: vaultAddress as `0x${string}`,
+      const reason = refundReason || "User requested refund";
+      const txHash = await writeContractAsync({
+        address: VAULT_ADDRESS,
         abi: VAULT_ABI,
         functionName: "processRefund",
-        args: [contractAddress as `0x${string}`, BigInt(selectedTokenId), refundReason || "User requested refund"],
+        args: [contractAddress, BigInt(selectedTokenId), reason],
       });
 
       setMintingStep("Waiting for refund confirmation...");
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
-      if (!receipt) throw new Error("Receipt not found");
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-      // Parse RefundIssued event for DB record
       let refundedAmount = "0",
         feeRetained = "0",
-        paymentToken = "0x0000000000000000000000000000000000000000";
+        paymentToken: string = ZERO_ADDRESS;
       for (const log of receipt.logs) {
         try {
           const decoded = decodeEventLog({
@@ -434,12 +570,9 @@ const Home: NextPage = () => {
           feeRetained = (decoded.args as any).feeRetained.toString();
           paymentToken = (decoded.args as any).paymentToken as string;
           break;
-        } catch {
-          /* not RefundIssued */
-        }
+        } catch {}
       }
 
-      // Record refund in DB — inserts into `refunds` table
       await fetch("/api/refund", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -447,7 +580,7 @@ const Home: NextPage = () => {
           contractAddress,
           tokenId: selectedTokenId.toString(),
           refundedBy: connectedAddress,
-          refundReason: refundReason || "User requested refund",
+          refundReason: reason,
           refundTxHash: txHash,
           blockNumber: receipt.blockNumber.toString(),
           paymentToken,
@@ -456,25 +589,58 @@ const Home: NextPage = () => {
         }),
       });
 
-      setOwnedTokens(prev => prev.filter(t => t !== selectedTokenId));
-      setSelectedTokenId(ownedTokens.filter(t => t !== selectedTokenId)[0] || 0);
-      notification.success("Refund processed! NFT has been burned.");
-      setMintingStep("");
+      // Fetch authoritative DB state — the refunds row now exists so token is excluded.
+      await fetchOwnedTokens();
       setShowRefundInput(false);
+      setRefundReason(""); // clear so the next token starts with an empty textarea
+      notification.success("Refund processed! NFT has been burned.");
     } catch (error: any) {
-      console.error("Refund error:", error);
+      console.error("Refund error", error);
       notification.error(`Refund failed: ${error.message}`);
-      setMintingStep("");
     } finally {
       setLoading(false);
+      setMintingStep("");
     }
   };
 
-  const refundWindowHoursLeft = refundWindowExpiry
-    ? Math.max(0, Math.floor((refundWindowExpiry.getTime() - Date.now()) / 3600000))
-    : null;
+  // ─── Render ───────────────────────────────────────────────────────────────
 
-  // ============ Render ============
+  if (productsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen flex-col gap-4">
+        <span className="loading loading-spinner loading-lg" />
+        <p className="text-base-content/70">Loading games...</p>
+      </div>
+    );
+  }
+
+  if (productsError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen flex-col gap-4">
+        <div className="alert alert-error max-w-md">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="stroke-current shrink-0 h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span>{productsError}</span>
+        </div>
+        {/* loadProducts() re-runs the fetch without destroying wallet state */}
+        <button className="btn btn-outline" onClick={loadProducts}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center flex-col grow pt-10">
       <div className="px-5 w-full max-w-4xl">
@@ -482,47 +648,63 @@ const Home: NextPage = () => {
           <span className="block text-4xl font-bold mb-8">NFT Game Keys</span>
         </h1>
 
-        <div className="flex justify-center items-center space-x-2 flex-col mb-8">
-          <p className="my-2 font-medium">Connected Address:</p>
-          <Address
-            address={connectedAddress}
-            chain={targetNetwork}
-            blockExplorerAddressLink={
-              targetNetwork.id === hardhat.id ? `/blockexplorer/address/${connectedAddress}` : undefined
-            }
-          />
+        {/* Connected address */}
+        <div className="flex justify-center items-center flex-col mb-8">
+          <p className="my-2 font-medium">Connected Address</p>
+          <span className="font-mono text-sm break-all">{connectedAddress ?? "Not connected"}</span>
         </div>
 
-        <div className="text-center mb-8">
-          <p className="text-lg">
-            Supply: {totalSupply?.toString() || "0"} / {maxSupply?.toString() || "0"}
-          </p>
-          <p className="text-lg mt-2">
-            Price: {mintPriceETH ? formatEther(mintPriceETH) : "0"} ETH or{" "}
-            {mintPriceUSD ? (Number(mintPriceUSD) / 1e6).toFixed(2) : "0"} USDC/USDT
-          </p>
+        {/* Game selector — only rendered when there are multiple products */}
+        {products.length > 1 && (
+          <div className="flex justify-center gap-4 mb-8 flex-wrap">
+            {products.map(p => (
+              <div
+                key={p.productid}
+                className={`card bg-base-100 shadow-xl cursor-pointer border-2 transition-colors ${
+                  selectedProduct?.productid === p.productid ? "border-primary" : "border-transparent"
+                }`}
+                onClick={() => setSelectedProduct(p)}
+              >
+                <div className="card-body items-center text-center py-4 px-6">
+                  <h2 className="card-title text-base">{p.name}</h2>
+                  <p className="text-xs text-base-content/70">{p.genre}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Supply & price — min-h prevents layout shift while data loads */}
+        <div className="text-center mb-4 min-h-[3.5rem]">
+          {contractLoading ? (
+            <span className="loading loading-dots loading-sm" />
+          ) : (
+            <>
+              <p className="text-lg">
+                Supply: {totalSupply?.toString() ?? "—"} / {maxSupply?.toString() ?? "—"}
+              </p>
+              <p className="text-lg mt-1">
+                Price: {mintPriceETH !== undefined ? formatEther(mintPriceETH) : "—"} ETH or{" "}
+                {mintPriceUSD !== undefined ? (Number(mintPriceUSD) / 1e6).toFixed(2) : "—"} USDC/USDT
+              </p>
+            </>
+          )}
         </div>
 
-        <div className="flex justify-center mb-8">
-          <div className="card bg-base-100 shadow-xl max-w-sm">
-            <figure className="px-10 pt-10">
-              <Image
-                src={GAME_IMAGE}
-                alt="Fallout"
-                width={400}
-                height={192}
-                className="rounded-xl h-48 w-full object-cover"
-                unoptimized
-              />
-            </figure>
-            <div className="card-body items-center text-center">
-              <h2 className="card-title">Fallout</h2>
-              <p className="text-sm text-base-content/70">Post-Apocalyptic RPG</p>
-              <p className="text-sm">Mint your NFT to receive a unique game CD key</p>
+        {/* Game card */}
+        {selectedProduct && (
+          <div className="flex justify-center mb-8">
+            <div className="card bg-base-100 shadow-xl max-w-sm w-full">
+              <div className="card-body items-center text-center">
+                <h2 className="card-title">{selectedProduct.name}</h2>
+                <p className="text-sm text-base-content/70">{selectedProduct.genre}</p>
+                {selectedProduct.description && <p className="text-sm">{selectedProduct.description}</p>}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
+        {/* Payment method */}
         <div className="flex justify-center mb-8">
           <div className="join">
             {(["ETH", "USDT", "USDC"] as const).map(method => (
@@ -538,19 +720,25 @@ const Home: NextPage = () => {
           </div>
         </div>
 
+        {/* Mint — also disabled during contractLoading to prevent stale-price mint */}
         <div className="flex justify-center mb-8">
           <button
             className="btn btn-primary btn-lg w-full max-w-md"
             onClick={handleMint}
-            disabled={loading || !connectedAddress}
+            disabled={loading || !connectedAddress || !contractAddress || mintPriceETH === undefined || contractLoading}
           >
             {loading && mintingStep ? mintingStep : `Mint NFT with ${selectedPayment}`}
           </button>
         </div>
 
-        {ownedTokens.length > 0 && (
+        {/* Owned tokens */}
+        {tokensLoading ? (
+          <div className="flex justify-center mb-8">
+            <span className="loading loading-spinner loading-md" />
+          </div>
+        ) : ownedTokens.length > 0 ? (
           <div className="card bg-base-200 shadow-xl p-6 mb-8">
-            <h2 className="text-2xl font-bold mb-4">Your NFTs & CD Keys</h2>
+            <h2 className="text-2xl font-bold mb-4">Your NFTs &amp; CD Keys</h2>
 
             <div className="form-control mb-4">
               <label className="label">
@@ -578,24 +766,25 @@ const Home: NextPage = () => {
                   </span>
                   {!isClaimed && refundWindowHoursLeft !== null && (
                     <span className={`label-text-alt ${refundWindowHoursLeft < 24 ? "text-error" : "text-warning"}`}>
-                      🕐 Refund window: {refundWindowHoursLeft}h left
+                      Refund window: {refundWindowHoursLeft}h left
                     </span>
                   )}
                 </label>
               )}
             </div>
 
+            {/* Claim */}
             {selectedTokenId > 0 && !isClaimed && (
               <button
                 className="btn btn-accent w-full mb-4"
                 onClick={handleClaimCDKey}
                 disabled={loading || !connectedAddress}
               >
-                {loading ? mintingStep || "Processing..." : "🔐 Claim CD Key (Makes NFT Soulbound)"}
+                {loading ? mintingStep || "Processing..." : "Claim CD Key (Makes NFT Soulbound)"}
               </button>
             )}
 
-            {/* Refund section — only visible while unclaimed and within 14-day window */}
+            {/* Refund */}
             {selectedTokenId > 0 && !isClaimed && isRefundable && (
               <div className="mb-4">
                 {!showRefundInput ? (
@@ -604,12 +793,12 @@ const Home: NextPage = () => {
                     onClick={() => setShowRefundInput(true)}
                     disabled={loading}
                   >
-                    💸 Request Refund (5% fee retained)
+                    Request Refund (5% fee retained)
                   </button>
                 ) : (
                   <div className="card bg-base-100 p-4 border border-error">
                     <p className="text-sm text-error font-bold mb-2">
-                      ⚠️ This will burn your NFT and refund 95% of the payment.
+                      This will burn your NFT and refund 95% of the payment.
                     </p>
                     <textarea
                       className="textarea textarea-bordered w-full mb-2"
@@ -617,6 +806,7 @@ const Home: NextPage = () => {
                       value={refundReason}
                       onChange={e => setRefundReason(e.target.value)}
                       rows={2}
+                      maxLength={280}
                     />
                     <div className="flex gap-2">
                       <button className="btn btn-error flex-1" onClick={handleRefund} disabled={loading}>
@@ -635,6 +825,7 @@ const Home: NextPage = () => {
               </div>
             )}
 
+            {/* Reveal */}
             {selectedTokenId > 0 && isClaimed && (
               <>
                 <div className="divider">Your CD Key</div>
@@ -643,42 +834,42 @@ const Home: NextPage = () => {
                   onClick={handleRevealCDKey}
                   disabled={loading || !connectedAddress}
                 >
-                  {loading ? mintingStep || "Processing..." : "🔑 Reveal CD Key"}
+                  {loading ? mintingStep || "Processing..." : "Reveal CD Key"}
                 </button>
+                {revealedKey && (
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text font-bold">Your Game CD Key</span>
+                    </label>
+                    <div className="mockup-code">
+                      <pre className="text-success">
+                        <code>{revealedKey}</code>
+                      </pre>
+                    </div>
+                    <div className="flex justify-end mt-2">
+                      <button
+                        className="btn btn-sm btn-outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(revealedKey);
+                          notification.success("Copied!");
+                        }}
+                      >
+                        Copy Key
+                      </button>
+                    </div>
+                    <label className="label">
+                      <span className="label-text-alt text-warning">
+                        This key is unique and can only be used once. Keep it safe!
+                      </span>
+                    </label>
+                  </div>
+                )}
               </>
             )}
-
-            {revealedKey && (
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-bold">🎮 Your Game CD Key:</span>
-                </label>
-                <div className="mockup-code">
-                  <pre className="text-success">
-                    <code>{revealedKey}</code>
-                  </pre>
-                </div>
-                <div className="flex justify-end mt-2">
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(revealedKey);
-                      notification.success("Copied to clipboard!");
-                    }}
-                  >
-                    📋 Copy Key
-                  </button>
-                </div>
-                <label className="label">
-                  <span className="label-text-alt text-warning">
-                    ⚠️ This key is unique and can only be used once. Keep it safe!
-                  </span>
-                </label>
-              </div>
-            )}
           </div>
-        )}
+        ) : null}
 
+        {/* How it works */}
         <div className="alert alert-info shadow-lg mb-8">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -694,15 +885,12 @@ const Home: NextPage = () => {
             />
           </svg>
           <div>
-            <h3 className="font-bold">How it works:</h3>
+            <h3 className="font-bold">How it works</h3>
             <ol className="text-xs list-decimal list-inside space-y-1 mt-1">
               <li>Mint your NFT — a CD key is reserved for you on-chain via commitment hash</li>
-              <li>
-                Claim your CD key within 14 days — encrypted with your MetaMask key, stored on-chain; NFT becomes
-                soulbound
-              </li>
+              <li>Claim your CD key — encrypted with your MetaMask key, stored on-chain; NFT becomes soulbound</li>
               <li>Reveal your CD key anytime by decrypting with MetaMask</li>
-              <li>Not satisfied? Request a refund within 14 days (before claiming) — 5% fee applies</li>
+              <li>Not satisfied? Request a refund within 14 days before claiming — 5% fee applies</li>
             </ol>
           </div>
         </div>

@@ -119,7 +119,23 @@ Refactoring the code:
 05/03/26
 
 - Testing
+- The scaffold-ETH is breaking my front end witht the baked in contract addresses from the first deployment. Issues with multi-contract project.
+
+06/03/26
+
+- Testing, redoing the front end fixing the issues.
+- Slowly removing the scaffolding.
+- new abis.ts manual control of the ABI -- It defines exactly which functions and events the frontend needs to talk to, using viem's parseAbi helper to turn human-readable Solidity signatures into the binary format the EVM expects.
+- new products/route.ts -- game catalogue. It returns the list of registered games from the database with contract addresses (each game is a separate SoulKey contract). The frontend needs to discover all of them at runtime, not at build time (de-registered games), + Cache-Control.
+- new tokens/route.ts, tracks which token an address holds. -- important for RPC querries overload (shows no tokens owned). The route queries the mints table instead (reliable and fast regardless of chain history length), burned NFT never appears in the user's list.
+
+09/03/26
+
+- Removed the useScaffoldReadContract that reads whichever address is in the deployedContracts.ts. This scaffold-eth hook gates the address to the deployed contract that is in deployedContracts.ts and if I deploy multiple contracts it registers only one address. DeployedContracts.ts can be updated only with redeployment of the contract -- a little bit of a headache if you're working on two computers with different wallets.
+- Bug fixes, hardening the code and pushing the changes to git.
 
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
+
+- I need to introduce a changelog (09/03/26)

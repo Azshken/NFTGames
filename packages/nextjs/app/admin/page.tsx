@@ -5,11 +5,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { parseAbi } from "viem";
-import { useAccount, usePublicClient, useSignMessage, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useReadContract, useSignMessage, useWriteContract } from "wagmi";
 
-import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { SOULKEY_ABI, VAULT_ABI } from "~~/utils/abis";
 import { notification } from "~~/utils/scaffold-eth";
+
+// Explicitly declared contract address
+const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS as `0x${string}` | undefined;
 
 export default function AdminPage() {
   const router = useRouter();
@@ -32,18 +34,16 @@ export default function AdminPage() {
   const [regStatus, setRegStatus] = useState<string>("");
   const [genContractAddress, setGenContractAddress] = useState<string>("");
 
-  // ← contract name updated to SoulKey
-  const { data: contractOwner } = useScaffoldReadContract({
-    contractName: "SoulKey",
+  // Only the owner of the VAULT_ADDRESS has access to the /admin page
+  const { data: contractOwner, isLoading: ownerLoading } = useReadContract({
+    address: VAULT_ADDRESS,
+    abi: VAULT_ABI,
     functionName: "owner",
+    query: { enabled: !!VAULT_ADDRESS },
   });
-  const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SoulKey" });
-  const contractAddress = deployedContractData?.address;
 
-  // Pre-fill when scaffold contract loads:
-  useEffect(() => {
-    if (contractAddress) setGenContractAddress(prev => prev || contractAddress);
-  }, [contractAddress]);
+  // No Pre-fill, admin types the SoulKey address manually.
+  // Multiple SoulKey addresses exist.
 
   useEffect(() => {
     if (isConnected && contractOwner && connectedAddress) {
@@ -122,21 +122,25 @@ export default function AdminPage() {
       notification.error("Invalid contract address");
       return;
     }
+    if (!publicClient) {
+      notification.error("No RPC client available — please refresh the page");
+      return;
+    }
 
     setRegLoading(true);
     setRegStatus("Checking on-chain registration...");
     try {
       // Read vault address from the SoulKey contract
-      const vaultAddress = await publicClient!.readContract({
+      const vaultAddress = await publicClient.readContract({
         address: regContractAddress as `0x${string}`,
-        abi: parseAbi(["function vault() view returns (address)"]),
+        abi: SOULKEY_ABI,
         functionName: "vault",
       });
 
       // Check if already registered in vault
-      const isRegistered = await publicClient!.readContract({
+      const isRegistered = await publicClient.readContract({
         address: vaultAddress as `0x${string}`,
-        abi: parseAbi(["function registeredGames(address) view returns (bool)"]),
+        abi: VAULT_ABI,
         functionName: "registeredGames",
         args: [regContractAddress as `0x${string}`],
       });
@@ -149,12 +153,12 @@ export default function AdminPage() {
         setRegStatus("Registering contract with MasterKeyVault...");
         const txHash = await writeVaultContract({
           address: vaultAddress as `0x${string}`,
-          abi: parseAbi(["function registerGame(address soulKeyContract) external"]),
+          abi: VAULT_ABI,
           functionName: "registerGame",
           args: [regContractAddress as `0x${string}`],
         });
         setRegStatus("Waiting for confirmation...");
-        await publicClient!.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+        await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
       }
 
       setRegStatus("Saving product to database...");
@@ -219,7 +223,7 @@ export default function AdminPage() {
     );
   }
 
-  if (isConnected && !contractOwner) {
+  if (isConnected && ownerLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <span className="loading loading-spinner loading-lg" />
@@ -248,7 +252,7 @@ export default function AdminPage() {
 
       <div className="alert alert-success mb-8">
         <span className="text-sm font-mono">✅ Owner: {connectedAddress}</span>
-        {contractAddress && <span className="text-sm font-mono ml-4">📄 Contract: {contractAddress}</span>}
+        {VAULT_ADDRESS && <span className="text-sm font-mono ml-4">📄 Vault: {VAULT_ADDRESS}</span>}
       </div>
 
       <div className="card bg-base-200 shadow-xl mb-8">
