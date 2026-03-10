@@ -26,7 +26,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Product = {
-  productid: number;
+  product_id: number;
   contractaddress: `0x${string}`;
   name: string;
   genre: string;
@@ -659,9 +659,9 @@ const Home: NextPage = () => {
           <div className="flex justify-center gap-4 mb-8 flex-wrap">
             {products.map(p => (
               <div
-                key={p.productid}
+                key={p.product_id}
                 className={`card bg-base-100 shadow-xl cursor-pointer border-2 transition-colors ${
-                  selectedProduct?.productid === p.productid ? "border-primary" : "border-transparent"
+                  selectedProduct?.product_id === p.product_id ? "border-primary" : "border-transparent"
                 }`}
                 onClick={() => setSelectedProduct(p)}
               >
