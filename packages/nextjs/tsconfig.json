@@ -29,5 +29,5 @@
     "../../node_modules",
     "node_modules/porto",
     "node_modules/@noble",
-    "node_modules/@ethereumjs"]
+    "node_modules/@ethereumjs",]
 }
