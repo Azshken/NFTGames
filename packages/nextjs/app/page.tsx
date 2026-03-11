@@ -645,8 +645,9 @@ const Home: NextPage = () => {
     <div className="flex items-center flex-col grow pt-10">
       <div className="px-5 w-full max-w-4xl">
         <h1 className="text-center">
-          <span className="block text-4xl font-bold mb-8">SoulKey Virtual Game Keys</span>
+          <span className="block text-4xl font-bold mb-8">SoulKey</span>
         </h1>
+        <p className="subtitle font-medium">Virtual Game Keys</p>
 
         {/* Contract address */}
         <div className="flex justify-center items-center flex-col mb-8">

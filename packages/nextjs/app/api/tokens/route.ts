@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
       JOIN batches b  ON b.batchid   = ck.batchid
       JOIN products p ON p.productid = b.productid
       WHERE LOWER(m.mintedby)        = LOWER(${wallet})
-        AND LOWER(p.contractaddress) = LOWER(${contract})
+        AND LOWER(p.contract_address) = LOWER(${contract})
         AND NOT EXISTS (
           SELECT 1 FROM refunds r WHERE r.cdkeyid = ck.id
         )
