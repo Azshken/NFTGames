@@ -28,6 +28,7 @@ export const SOULKEY_ABI = parseAbi([
   // events — included here so decodeEventLog uses SOULKEY_ABI directly, no inline parseAbi
   "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
   "event NFTMinted(uint256 indexed tokenId, address indexed minter, address indexed paymentToken, bytes32 commitmentHash)",
+  "function setBaseURI(string memory newBaseURI) external",
 ]);
 
 export const VAULT_ABI = parseAbi([

@@ -15,7 +15,8 @@ export async function GET() {
         contract_address,
         name,
         genre,
-        description
+        description,
+        image_cid
       FROM products
       ORDER BY product_id ASC
     `;

@@ -31,6 +31,7 @@ type Product = {
   name: string;
   genre: string;
   description: string;
+  image_cid: string | null;
 };
 
 // Mirrors MasterKeyVault.PaymentRecord:
@@ -658,17 +659,26 @@ const Home: NextPage = () => {
         {/* Game selector — only rendered when there are multiple products */}
         {products.length > 1 && (
           <div className="flex justify-center gap-4 mb-8 flex-wrap">
-            {products.map(p => (
+            {products.map(selectedProduct => (
               <div
-                key={p.product_id}
+                key={selectedProduct.product_id}
                 className={`card bg-base-100 shadow-xl cursor-pointer border-2 transition-colors ${
-                  selectedProduct?.product_id === p.product_id ? "border-primary" : "border-transparent"
+                  selectedProduct?.product_id === selectedProduct.product_id ? "border-primary" : "border-transparent"
                 }`}
-                onClick={() => setSelectedProduct(p)}
+                onClick={() => setSelectedProduct(selectedProduct)}
               >
+                {selectedProduct.image_cid && (
+                  <figure className="px-6 pt-6">
+                    <img
+                      src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
+                      alt={selectedProduct.name}
+                      className="rounded-lg object-cover w-20 h-20"
+                    />
+                  </figure>
+                )}
                 <div className="card-body items-center text-center py-4 px-6">
-                  <h2 className="card-title text-base">{p.name}</h2>
-                  <p className="text-xs text-base-content/70">{p.genre}</p>
+                  <h2 className="card-title text-base">{selectedProduct.name}</h2>
+                  <p className="text-xs text-base-content/70">{selectedProduct.genre}</p>
                 </div>
               </div>
             ))}
@@ -696,6 +706,13 @@ const Home: NextPage = () => {
         {selectedProduct && (
           <div className="flex justify-center mb-8">
             <div className="card bg-base-100 shadow-xl max-w-sm w-full">
+              {selectedProduct.image_cid && (
+                <img
+                  src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
+                  alt={selectedProduct.name}
+                  className="w-24 h-24 object-cover rounded-lg mb-2"
+                />
+              )}
               <div className="card-body items-center text-center">
                 <h2 className="card-title">{selectedProduct.name}</h2>
                 <p className="text-sm text-base-content/70">{selectedProduct.genre}</p>

@@ -16,15 +16,13 @@ export async function POST(req: NextRequest) {
     const {
       walletAddress,
       contractAddress, // the SoulKey address to register
-      gameName,
-      genre,
-      description,
+      metadataCid,
       signature,
       message,
       timestamp,
     } = body;
 
-    if (!walletAddress || !contractAddress || !gameName || !signature || !message || !timestamp) {
+    if (!walletAddress || !contractAddress || !metadataCid || !signature || !message || !timestamp) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
@@ -84,19 +82,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Upsert product row — safe to call for the initial deployment too
-    const result = await sql`
-      INSERT INTO products (contract_address, name, genre, description)
-      VALUES (${contractAddress.toLowerCase()}, ${gameName}, ${genre ?? ""}, ${description ?? ""})
-      ON CONFLICT (contract_address) DO UPDATE
-        SET name        = EXCLUDED.name,
-            genre       = EXCLUDED.genre,
-            description = EXCLUDED.description
-      RETURNING product_id, contract_address, name
-    `;
+    // Fetch game metadata from Pinata gateway
+    // Cloudflare as a backup gateway
+    const gateways = [
+      `https://gateway.pinata.cloud/ipfs/${metadataCid}`,
+      `https://cloudflare-ipfs.com/ipfs/${metadataCid}`,
+    ];
 
-    const product = result.rows[0];
-    return NextResponse.json({ success: true, product });
+    let meta: any = null;
+    for (const url of gateways) {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (r.ok) {
+          meta = await r.json();
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (!meta) throw new Error("Could not fetch metadata from IPFS — check your CID");
+
+    // Parse image CID — strip "ipfs://" prefix if present
+    const imageCid = (meta.image as string | undefined)?.replace("ipfs://", "") ?? null;
+    const gameName = meta.name ?? "Unknown Game";
+    const genre = meta.genre ?? "";
+    const description = meta.description ?? "";
+
+    // Upsert — now fully automatic, no form fields needed
+    await sql`
+      INSERT INTO products (contract_address, name, genre, description, image_cid, metadata_cid)
+      VALUES (
+        ${contractAddress.toLowerCase()},
+        ${gameName},
+        ${genre},
+        ${description},
+        ${imageCid},
+        ${metadataCid}
+      )
+      ON CONFLICT (contract_address) DO UPDATE
+      SET name        = EXCLUDED.name,
+          genre       = EXCLUDED.genre,
+          description = EXCLUDED.description,
+          image_cid   = EXCLUDED.image_cid,
+          metadata_cid = EXCLUDED.metadata_cid
+    `;
+    return NextResponse.json({
+      success: true,
+      product: { contract_address: contractAddress, name: gameName },
+    });
   } catch (error: any) {
     console.error("Register Game API error:", error);
     return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });

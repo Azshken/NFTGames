@@ -33,6 +33,8 @@ export default function AdminPage() {
   const [regLoading, setRegLoading] = useState(false);
   const [regStatus, setRegStatus] = useState<string>("");
   const [genContractAddress, setGenContractAddress] = useState<string>("");
+  const [newBaseURI, setNewBaseURI] = useState("");
+  const { writeContractAsync } = useWriteContract();
 
   // Only the owner of the VAULT_ADDRESS has access to the /admin page
   const { data: contractOwner, isLoading: ownerLoading } = useReadContract({
@@ -362,6 +364,36 @@ export default function AdminPage() {
               onChange={e => setGenContractAddress(e.target.value)}
               disabled={loading}
             />
+          </div>
+
+          {/* Set Base URI — for contracts deployed before this feature */}
+          <div className="card bg-base-200 shadow p-6 mb-6">
+            <h2 className="text-xl font-bold mb-4">Set Base URI</h2>
+            <p className="text-sm text-base-content/70 mb-3">
+              Use for contracts deployed before the auto-URI feature. The URI is set automatically by the deploy script
+              for new contracts.
+            </p>
+            <input
+              className="input input-bordered w-full mb-3"
+              placeholder={`https://soulkey.vercel.app/api/nft/${regContractAddress}/`}
+              value={newBaseURI}
+              onChange={e => setNewBaseURI(e.target.value)}
+            />
+            <button
+              className="btn btn-outline w-full"
+              disabled={!newBaseURI || loading}
+              onClick={async () => {
+                await writeContractAsync({
+                  address: regContractAddress as `0x${string}`,
+                  abi: SOULKEY_ABI,
+                  functionName: "setBaseURI",
+                  args: [newBaseURI],
+                });
+                notification.success("Base URI updated!");
+              }}
+            >
+              Set Base URI on Contract
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
