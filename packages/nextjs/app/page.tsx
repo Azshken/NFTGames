@@ -27,7 +27,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 type Product = {
   product_id: number;
-  contractaddress: `0x${string}`;
+  contract_address: `0x${string}`;
   name: string;
   genre: string;
   description: string;
@@ -80,7 +80,7 @@ const Home: NextPage = () => {
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
 
-  const contractAddress = selectedProduct?.contractaddress;
+  const contractAddress = selectedProduct?.contract_address;
 
   // Extracted as useCallback so the Retry button can call it directly without a
   // full page reload, which would destroy the user's wallet connection state.
@@ -645,13 +645,13 @@ const Home: NextPage = () => {
     <div className="flex items-center flex-col grow pt-10">
       <div className="px-5 w-full max-w-4xl">
         <h1 className="text-center">
-          <span className="block text-4xl font-bold mb-8">NFT Game Keys</span>
+          <span className="block text-4xl font-bold mb-8">SoulKey Virtual Game Keys</span>
         </h1>
 
-        {/* Connected address */}
+        {/* Contract address */}
         <div className="flex justify-center items-center flex-col mb-8">
-          <p className="my-2 font-medium">Connected Address</p>
-          <span className="font-mono text-sm break-all">{connectedAddress ?? "Not connected"}</span>
+          <p className="my-2 font-medium">Contract Address</p>
+          <span className="font-mono text-sm break-all">{contractAddress}</span>
         </div>
 
         {/* Game selector — only rendered when there are multiple products */}
