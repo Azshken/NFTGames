@@ -5,10 +5,14 @@ import { createPublicClient, getAddress, http, parseAbi } from "viem";
 
 import scaffoldConfig from "~~/scaffold.config";
 
-export async function GET(_req: NextRequest, { params }: { params: { contractAddress: string; tokenId: string } }) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ contractAddress: string; tokenId: string }> },
+) {
   try {
-    const contractAddress = getAddress(params.contractAddress); // checksum normalise
-    const tokenId = BigInt(params.tokenId);
+    const { contractAddress: rawAddress, tokenId: rawTokenId } = await params; // checksum normalise
+    const contractAddress = getAddress(rawAddress);
+    const tokenId = BigInt(rawTokenId);
 
     const result = await sql`
       SELECT name, genre, description, image_cid
