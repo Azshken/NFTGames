@@ -64,10 +64,7 @@ export default function AdminPage() {
   });
 
   const isOwner =
-    isConnected &&
-    contractOwner &&
-    connectedAddress &&
-    contractOwner.toLowerCase() === connectedAddress.toLowerCase();
+    isConnected && contractOwner && connectedAddress && contractOwner.toLowerCase() === connectedAddress.toLowerCase();
 
   // Redirect non-owners away from this page
   useEffect(() => {
@@ -360,16 +357,19 @@ export default function AdminPage() {
 
         {contractStatus && (
           <div className="space-y-4">
-
             {/* DB registration status */}
-            <div className={`alert ${contractStatus.inDB ? "alert-success" : "alert-warning"}`}>
-              {contractStatus.inDB
+            <div
+              className={`alert ${contractStatus.inDB && contractStatus.metadataCid ? "alert-success" : "alert-warning"}`}
+            >
+              {contractStatus.inDB && contractStatus.metadataCid
                 ? `✅ DB registered — "${contractStatus.dbName}" · CID: ${contractStatus.metadataCid?.slice(0, 14)}...`
-                : "⚠️ Not in DB — enter the Pinata metadata CID to register"}
+                : contractStatus.inDB && !contractStatus.metadataCid
+                  ? `⚠️ DB entry exists for "${contractStatus.dbName}" but metadata CID is missing — re-register below`
+                  : "⚠️ Not in DB — enter the Pinata metadata CID to register"}
             </div>
 
             {/* DB registration form — only shown when not yet registered */}
-            {!contractStatus.inDB && (
+            {(!contractStatus.inDB || !contractStatus.metadataCid) && (
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">Pinata Metadata CID</span>
@@ -382,14 +382,14 @@ export default function AdminPage() {
                   onChange={e => setMetadataCid(e.target.value)}
                   disabled={regLoading}
                 />
-                <button
-                  className="btn btn-primary w-full"
-                  disabled={!metadataCid || regLoading}
-                  onClick={registerGame}
-                >
-                  {regLoading && regStatus.includes("Fetching")
-                    ? <><span className="loading loading-spinner loading-xs" /> {regStatus}</>
-                    : "Register Game (fetches name & image from Pinata automatically)"}
+                <button className="btn btn-primary w-full" disabled={!metadataCid || regLoading} onClick={registerGame}>
+                  {regLoading && regStatus.includes("Fetching") ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs" /> {regStatus}
+                    </>
+                  ) : (
+                    "Register Game (fetches name & image from Pinata automatically)"
+                  )}
                 </button>
               </div>
             )}
@@ -416,14 +416,14 @@ export default function AdminPage() {
                   onChange={e => setNewBaseURI(e.target.value)}
                   disabled={regLoading}
                 />
-                <button
-                  className="btn btn-outline w-full"
-                  disabled={!newBaseURI || regLoading}
-                  onClick={setBaseURI}
-                >
-                  {regLoading && regStatus.includes("Base URI")
-                    ? <><span className="loading loading-spinner loading-xs" /> {regStatus}</>
-                    : "Set Base URI on Contract"}
+                <button className="btn btn-outline w-full" disabled={!newBaseURI || regLoading} onClick={setBaseURI}>
+                  {regLoading && regStatus.includes("Base URI") ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs" /> {regStatus}
+                    </>
+                  ) : (
+                    "Set Base URI on Contract"
+                  )}
                 </button>
               </div>
             )}
@@ -435,7 +435,6 @@ export default function AdminPage() {
                 <span>{regStatus}</span>
               </div>
             )}
-
           </div>
         )}
       </div>
@@ -448,7 +447,9 @@ export default function AdminPage() {
         </p>
 
         <div className="form-control mb-3">
-          <label className="label"><span className="label-text">SoulKey Contract Address</span></label>
+          <label className="label">
+            <span className="label-text">SoulKey Contract Address</span>
+          </label>
           <input
             className="input input-bordered w-full font-mono"
             placeholder="0x..."
@@ -503,20 +504,22 @@ export default function AdminPage() {
           )}
         </div>
 
-        <button
-          className="btn btn-primary w-full"
-          onClick={generateKeys}
-          disabled={loading}
-        >
-          {loading
-            ? <><span className="loading loading-spinner loading-xs" /> Generating...</>
-            : `🔑 Generate ${quantity} Keys`}
+        <button className="btn btn-primary w-full" onClick={generateKeys} disabled={loading}>
+          {loading ? (
+            <>
+              <span className="loading loading-spinner loading-xs" /> Generating...
+            </>
+          ) : (
+            `🔑 Generate ${quantity} Keys`
+          )}
         </button>
 
         {keys.length > 0 && (
           <div className="mt-6">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold">Batch #{batchId} — {keys.length} keys</h3>
+              <h3 className="font-bold">
+                Batch #{batchId} — {keys.length} keys
+              </h3>
               <button className="btn btn-sm btn-outline" onClick={downloadHashes}>
                 💾 Download CSV
               </button>
