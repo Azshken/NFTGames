@@ -3,6 +3,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import type { NextPage } from "next";
 import { decodeEventLog, formatEther } from "viem";
 import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
@@ -669,10 +670,12 @@ const Home: NextPage = () => {
               >
                 {selectedProduct.image_cid && (
                   <figure className="px-6 pt-6">
-                    <img
+                    <Image
                       src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
                       alt={selectedProduct.name}
-                      className="rounded-lg object-cover w-20 h-20"
+                      width={384}
+                      height={192}
+                      className="rounded-xl object-cover w-full"
                     />
                   </figure>
                 )}
@@ -707,11 +710,15 @@ const Home: NextPage = () => {
           <div className="flex justify-center mb-8">
             <div className="card bg-base-100 shadow-xl max-w-sm w-full">
               {selectedProduct.image_cid && (
-                <img
-                  src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
-                  alt={selectedProduct.name}
-                  className="w-24 h-24 object-cover rounded-lg mb-2"
-                />
+                <figure className="px-6 pt-6">
+                  <Image
+                    src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
+                    alt={selectedProduct.name}
+                    width={384}
+                    height={192}
+                    className="rounded-xl object-cover w-full"
+                  />
+                </figure>
               )}
               <div className="card-body items-center text-center">
                 <h2 className="card-title">{selectedProduct.name}</h2>
