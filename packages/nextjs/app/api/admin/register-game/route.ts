@@ -11,17 +11,9 @@ const MAX_MESSAGE_AGE_MS = 5 * 60 * 1000;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
-    if (!body)
-      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    if (!body) return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
 
-    const {
-      walletAddress,
-      contractAddress,
-      metadataCid,
-      signature,
-      message,
-      timestamp,
-    } = body;
+    const { walletAddress, contractAddress, metadataCid, signature, message, timestamp } = body;
 
     if (!walletAddress || !contractAddress || !metadataCid || !signature || !message || !timestamp) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
@@ -86,13 +78,15 @@ export async function POST(req: NextRequest) {
     // 5. Fetch game metadata from Pinata — Cloudflare as fallback gateway
     const gateways = [
       `https://gateway.pinata.cloud/ipfs/${metadataCid}`,
-      `https://cloudflare-ipfs.com/ipfs/${metadataCid}`,
+      `https://ipfs.io/ipfs/${metadataCid}`,
+      `https://w3s.link/ipfs/${metadataCid}`,
+      `https://dweb.link/ipfs/${metadataCid}`,
     ];
 
     let meta: any = null;
     for (const url of gateways) {
       try {
-        const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
         if (r.ok) {
           meta = await r.json();
           break;
@@ -134,9 +128,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Register Game API error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Internal server error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
   }
 }
