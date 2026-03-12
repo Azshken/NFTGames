@@ -20,6 +20,7 @@ export const SOULKEY_ABI = parseAbi([
   "function vault() view returns (address)",
   "function getClaimTimestamp(uint256 tokenId) view returns (uint256)",
   "function getEncryptedCDKey(uint256 tokenId) view returns (bytes)",
+  "function baseURI() view returns (string)",
   // writes
   "function mintWithETH(bytes32 commitmentHash) payable",
   "function mintWithUSDT(bytes32 commitmentHash) nonpayable",

@@ -11,11 +11,12 @@ const MAX_MESSAGE_AGE_MS = 5 * 60 * 1000;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
-    if (!body) return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    if (!body)
+      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
 
     const {
       walletAddress,
-      contractAddress, // the SoulKey address to register
+      contractAddress,
       metadataCid,
       signature,
       message,
@@ -82,8 +83,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch game metadata from Pinata gateway
-    // Cloudflare as a backup gateway
+    // 5. Fetch game metadata from Pinata — Cloudflare as fallback gateway
     const gateways = [
       `https://gateway.pinata.cloud/ipfs/${metadataCid}`,
       `https://cloudflare-ipfs.com/ipfs/${metadataCid}`,
@@ -103,13 +103,13 @@ export async function POST(req: NextRequest) {
     }
     if (!meta) throw new Error("Could not fetch metadata from IPFS — check your CID");
 
-    // Parse image CID — strip "ipfs://" prefix if present
+    // Strip "ipfs://" prefix from image field if present
     const imageCid = (meta.image as string | undefined)?.replace("ipfs://", "") ?? null;
     const gameName = meta.name ?? "Unknown Game";
     const genre = meta.genre ?? "";
     const description = meta.description ?? "";
 
-    // Upsert — now fully automatic, no form fields needed
+    // 6. Upsert product row — safe to call repeatedly (updates metadata on re-registration)
     await sql`
       INSERT INTO products (contract_address, name, genre, description, image_cid, metadata_cid)
       VALUES (
@@ -121,18 +121,22 @@ export async function POST(req: NextRequest) {
         ${metadataCid}
       )
       ON CONFLICT (contract_address) DO UPDATE
-      SET name        = EXCLUDED.name,
-          genre       = EXCLUDED.genre,
-          description = EXCLUDED.description,
-          image_cid   = EXCLUDED.image_cid,
+      SET name         = EXCLUDED.name,
+          genre        = EXCLUDED.genre,
+          description  = EXCLUDED.description,
+          image_cid    = EXCLUDED.image_cid,
           metadata_cid = EXCLUDED.metadata_cid
     `;
+
     return NextResponse.json({
       success: true,
       product: { contract_address: contractAddress, name: gameName },
     });
   } catch (error: any) {
     console.error("Register Game API error:", error);
-    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message || "Internal server error" },
+      { status: 500 },
+    );
   }
 }

@@ -140,6 +140,11 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         emit BaseURIUpdated(newBaseURI);
     }
 
+    /// @notice Returns the base URI used to construct tokenURI.
+    function baseURI() public view returns (string memory) {
+        return _baseTokenURI;
+    }
+
     // ============ Minting ============
 
     /**
