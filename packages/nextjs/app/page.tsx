@@ -466,6 +466,8 @@ const Home: NextPage = () => {
           userAddress: connectedAddress,
           txHash,
           blockNumber: receipt.blockNumber.toString(),
+          contractAddress,
+          tokenId: selectedTokenId.toString(),
         }),
       });
 

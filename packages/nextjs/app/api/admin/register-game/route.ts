@@ -98,10 +98,15 @@ export async function POST(req: NextRequest) {
     if (!meta) throw new Error("Could not fetch metadata from IPFS — check your CID");
 
     // Strip "ipfs://" prefix from image field if present
+    const attrs = meta.attributes as { trait_type: string; value: string }[] ?? [];
+    const findAttr = (name: string) => attrs.find(a => a.trait_type === name)?.value ?? "";
+
     const imageCid = (meta.image as string | undefined)?.replace("ipfs://", "") ?? null;
     const gameName = meta.name ?? "Unknown Game";
-    const genre = meta.genre ?? "";
     const description = meta.description ?? "";
+    const genre = findAttr("Genre");
+    // const publisher = findAttr("Publisher");
+
 
     // 6. Upsert product row — safe to call repeatedly (updates metadata on re-registration)
     await sql`

@@ -150,6 +150,12 @@ Refactoring the code:
 - NFT metadata is on pinata and the db is upserted from the metadata when the game registered on the /admin/page
 - Architecture design: games metadata is on the static IPFS on pinata (do I need an IPFS for the db entry?). The baseURI is pointing to the application contract address. After claiming the NFT metada bakes in and there will be no more reliance on the DB.
 
+13/03/26
+
+- Prepared the backend for permanent metadata creation on pinata when CD key is claimed.
+- Worked on the frontend fixes.
+- Created a CHANGELOG.md
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.

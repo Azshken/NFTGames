@@ -72,29 +72,29 @@ export async function GET(req: NextRequest) {
   try {
     // Validate the contract is a registered product — prevents scraping arbitrary addresses
     const productCheck = await sql`
-      SELECT 1 FROM products WHERE LOWER(contractaddress) = LOWER(${contract}) LIMIT 1
+      SELECT 1 FROM products WHERE LOWER(contract_address) = LOWER(${contract}) LIMIT 1
     `;
     if (productCheck.rows.length === 0) {
       return NextResponse.json({ success: false, error: "Unknown contract" }, { status: 404 });
     }
 
     const result = await sql`
-      SELECT m.tokenid
+      SELECT m.token_id
       FROM mints m
-      JOIN cdkeys  ck ON ck.id       = m.cdkeyid
-      JOIN batches b  ON b.batchid   = ck.batchid
-      JOIN products p ON p.productid = b.productid
-      WHERE LOWER(m.mintedby)        = LOWER(${wallet})
+      JOIN cd_keys  ck ON ck.id       = m.cdkey_id
+      JOIN batches b  ON b.batch_id   = ck.batch_id
+      JOIN products p ON p.product_id = b.product_id
+      WHERE LOWER(m.minted_by)        = LOWER(${wallet})
         AND LOWER(p.contract_address) = LOWER(${contract})
         AND NOT EXISTS (
-          SELECT 1 FROM refunds r WHERE r.cdkeyid = ck.id
+          SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id
         )
-      ORDER BY m.tokenid ASC
+      ORDER BY m.token_id ASC
     `;
 
     return NextResponse.json({
       success: true,
-      tokens: result.rows.map(r => Number(r.tokenid)),
+      tokens: result.rows.map(r => Number(r.token_id)),
     });
   } catch (error: any) {
     console.error("Tokens API error", error);

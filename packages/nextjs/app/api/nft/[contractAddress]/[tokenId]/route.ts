@@ -25,6 +25,27 @@ export async function GET(
     }
     const { name, genre, description, image_cid } = result.rows[0];
 
+    // After fetching product from DB, also check for frozen metadata:
+    const redemptionResult = await sql`
+      SELECT r.frozen_metadata_cid
+      FROM mints m
+      JOIN redemptions r ON r.cdkey_id = m.cdkey_id
+      WHERE m.token_id = ${tokenId.toString()}
+      AND r.frozen_metadata_cid IS NOT NULL
+      LIMIT 1
+    `;
+
+    const frozenCid = redemptionResult.rows[0]?.frozen_metadata_cid ?? null;
+
+    if (frozenCid) {
+      // Permanent redirect to IPFS — this response never changes
+      return NextResponse.redirect(
+        `https://ipfs.io/ipfs/${frozenCid}`,
+        { status: 301 }  // 301 = permanent, marketplaces cache this
+      );
+    }
+    // No frozen CID — token is unclaimed, serve dynamic JSON
+    
     // Dynamic on-chain status — Unclaimed vs Soulbound
     let status = "Unclaimed";
     try {
