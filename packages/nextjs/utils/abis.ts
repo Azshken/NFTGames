@@ -30,6 +30,17 @@ export const SOULKEY_ABI = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
   "event NFTMinted(uint256 indexed tokenId, address indexed minter, address indexed paymentToken, bytes32 commitmentHash)",
   "function setBaseURI(string memory newBaseURI) external",
+  // custom errors
+  "error InvalidETHAmount()",
+  "error MaxSupplyReached()",
+  "error NotTokenOwner()",
+  "error NotVault()",
+  "error AlreadyClaimed()",
+  "error NotClaimed()",
+  "error CannotTransferClaimed()",
+  "error ZeroAddress()",
+  "error InvalidCommitmentHash()",
+  "error InvalidSupply()",
 ]);
 
 export const VAULT_ABI = parseAbi([

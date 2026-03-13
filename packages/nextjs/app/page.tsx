@@ -501,12 +501,12 @@ const Home: NextPage = () => {
     setLoading(true);
     setMintingStep("Retrieving encrypted CD key from blockchain...");
     try {
-      // No `account` field — view functions do not use msg.sender; the field has no effect.
       const encryptedBytes = (await publicClient.readContract({
         address: contractAddress,
         abi: SOULKEY_ABI,
         functionName: "getEncryptedCDKey",
         args: [BigInt(selectedTokenId)],
+        account: connectedAddress as `Ox${string}`,
       })) as `0x${string}`;
 
       if (!encryptedBytes || encryptedBytes === "0x") {
@@ -651,7 +651,7 @@ const Home: NextPage = () => {
         <h1 className="text-center">
           <span className="block text-4xl font-bold mb-8">SoulKey</span>
         </h1>
-        <p className="subtitle font-medium">Virtual Game Keys</p>
+        <p className="subtitle justify-center font-medium">Virtual Game Keys</p>
 
         {/* Contract address */}
         <div className="flex justify-center items-center flex-col mb-8">
