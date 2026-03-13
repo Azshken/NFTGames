@@ -175,6 +175,16 @@ const Home: NextPage = () => {
   });
 
   const isRefundable = (refundReads?.[0]?.result as boolean | undefined) ?? false;
+  
+  // TEMP DEBUG — remove after fixing
+  console.log("Refund debug:", {
+    VAULT_ADDRESS,
+    contractAddress,
+    selectedTokenId,
+    isClaimed,
+    refundReads,
+    isRefundable,
+  });
 
   // paidAt is typed as bigint | undefined — honest about the undefined case.
   // Previously the code destructured a fallback [] cast as PaymentRecord, which
@@ -651,7 +661,7 @@ const Home: NextPage = () => {
         <h1 className="text-center">
           <span className="block text-4xl font-bold mb-8">SoulKey</span>
         </h1>
-        <p className="subtitle justify-center font-medium">Virtual Game Keys</p>
+        <p className="subtitle flex items-center font-medium">Virtual Game Keys</p>
 
         {/* Contract address */}
         <div className="flex justify-center items-center flex-col mb-8">
