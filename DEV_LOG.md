@@ -134,6 +134,22 @@ Refactoring the code:
 - Removed the useScaffoldReadContract that reads whichever address is in the deployedContracts.ts. This scaffold-eth hook gates the address to the deployed contract that is in deployedContracts.ts and if I deploy multiple contracts it registers only one address. DeployedContracts.ts can be updated only with redeployment of the contract -- a little bit of a headache if you're working on two computers with different wallets.
 - Bug fixes, hardening the code and pushing the changes to git.
 
+10/03/26
+
+- Debugging the frontend
+- Fixed the admin ui authentication issue of the deployer.
+- Users cannot mint.
+
+11/03/26
+
+- Fixed the minting issue
+- Adding NFT metadata
+
+12/03/26
+
+- NFT metadata is on pinata and the db is upserted from the metadata when the game registered on the /admin/page
+- Architecture design: games metadata is on the static IPFS on pinata (do I need an IPFS for the db entry?). The baseURI is pointing to the application contract address. After claiming the NFT metada bakes in and there will be no more reliance on the DB.
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
