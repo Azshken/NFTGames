@@ -193,7 +193,7 @@ const Home: NextPage = () => {
   const paidAt: bigint | undefined = paymentRecord?.[1];
 
   const refundWindowExpiry =
-    paidAt !== undefined && paidAt > 0n ? new Date(Number(paidAt + BigInt(REFUND_WINDOW_SECS)) * 1000) : null;
+    paidAt !== undefined && paidAt > 0n ? new Date((Number(paidAt) + REFUND_WINDOW_SECS) * 1000) : null;
 
   const refundWindowHoursLeft = refundWindowExpiry
     ? Math.max(0, Math.floor((refundWindowExpiry.getTime() - Date.now()) / 3_600_000))
