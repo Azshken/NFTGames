@@ -158,11 +158,14 @@ export async function reserveAndMint(params: MintParams): Promise<CDKeyRow> {
   try {
     await client.sql`BEGIN`;
 
+    // Strip 0x prefix — cd_keys stores hashes without it
+    const normalizedHash = params.commitmentHash.replace(/^0x/i, "");
+
     // Lock the SPECIFIC key that was committed to on-chain at mint time
     const keyResult = await client.sql`
       SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
       FROM cd_keys ck
-      WHERE ck.commitment_hash = ${params.commitmentHash}
+      WHERE ck.commitment_hash = ${normalizeHash}
         AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
       FOR UPDATE OF ck SKIP LOCKED
     `;
