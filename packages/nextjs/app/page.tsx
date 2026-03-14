@@ -374,7 +374,7 @@ const Home: NextPage = () => {
           txHash,
           blockNumber: receipt.blockNumber.toString(),
           paymentToken: mintedPaymentToken,
-          paymentAmount: selectedPayment === "ETH" ? mintPriceETH!.tiString() : mintPriceUSD!.toString(),
+          paymentAmount: selectedPayment === "ETH" ? mintPriceETH!.toString() : mintPriceUSD!.toString(),
           contractAddress,
           commitmentHash: commitData.commitmentHash,
         }),
