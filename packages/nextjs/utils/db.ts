@@ -165,7 +165,7 @@ export async function reserveAndMint(params: MintParams): Promise<CDKeyRow> {
     const keyResult = await client.sql`
       SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
       FROM cd_keys ck
-      WHERE ck.commitment_hash = ${normalizeHash}
+      WHERE ck.commitment_hash = ${normalizedHash}
         AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
       FOR UPDATE OF ck SKIP LOCKED
     `;
