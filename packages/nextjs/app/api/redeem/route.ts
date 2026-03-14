@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Fetch cd_key + existing redemption record from new schema
-    const cdkeyRecord = await getCDKeyByTokenId(BigInt(tokenId));
+    const cdkeyRecord = await getCDKeyByTokenId(BigInt(tokenId), contractAddress);
     if (!cdkeyRecord) {
       return NextResponse.json({ success: false, error: "CD key not found for this token" }, { status: 404 });
     }

@@ -214,7 +214,7 @@ export async function reserveAndMint(params: MintParams): Promise<CDKeyRow> {
  * Fetches a cd_key row plus its current redemption record (if any)
  * by joining through mints → cd_keys → redemptions.
  */
-export async function getCDKeyByTokenId(tokenId: bigint): Promise<CDKeyWithRedemption | null> {
+export async function getCDKeyByTokenId(tokenId: bigint, contractAddress: string) {
   const result = await sql`
     SELECT
       ck.id,
@@ -226,8 +226,11 @@ export async function getCDKeyByTokenId(tokenId: bigint): Promise<CDKeyWithRedem
       r.redemption_id
     FROM mints m
     JOIN cd_keys ck ON ck.id = m.cdkey_id
+    JOIN batches b ON b.batch_id = ck.batch_id
+    JOIN products p ON p.product_id = b.product_id
     LEFT JOIN redemptions r ON r.cdkey_id = ck.id
     WHERE m.token_id = ${tokenId.toString()}
+    AND LOWER(p.contract_address) = LOWER(${contractAddress})
     LIMIT 1
   `;
   return (result.rows[0] as CDKeyWithRedemption) ?? null;
