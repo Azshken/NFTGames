@@ -661,7 +661,7 @@ const Home: NextPage = () => {
         <h1 className="text-center">
           <span className="block text-4xl font-bold mb-8">SoulKey</span>
         </h1>
-        <p className="subtitle flex items-center font-medium">Virtual Game Keys</p>
+        <p className="subtitle text-center font-medium">Virtual Game Keys</p>
 
         {/* Contract address */}
         <div className="flex justify-center items-center flex-col mb-8">
@@ -683,7 +683,7 @@ const Home: NextPage = () => {
                 {selectedProduct.image_cid && (
                   <figure className="px-6 pt-6">
                     <Image
-                      src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
+                      src={`https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}${selectedProduct.image_cid}`}
                       alt={selectedProduct.name}
                       width={384}
                       height={192}

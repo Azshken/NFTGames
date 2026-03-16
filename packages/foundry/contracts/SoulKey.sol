@@ -71,11 +71,12 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         address indexed owner,
         bool wasSoulbound
     );
+    event MetadataUpdate(uint256 _tokenId);
     event MintPriceUpdated(uint128 ethPrice, uint128 usdPrice);
     event MaxSupplyUpdated(uint64 oldSupply, uint64 newSupply);
     event RoyaltyUpdated(address receiver, uint96 feeNumerator);
     event BaseURIUpdated(string newBaseURI);
-
+    
     // ============ Errors ============
 
     error InvalidETHAmount();
@@ -245,6 +246,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
         vault.releaseReserveOnClaim(tokenId, msg.sender);
 
         emit CdKeyClaimed(tokenId, msg.sender, cdKeyHash);
+        emit MetadataUpdate(tokenId);
     }
 
     function getEncryptedCDKey(
@@ -348,7 +350,7 @@ contract SoulKey is ERC721, ERC2981, Ownable2Step, ReentrancyGuard, Pausable {
     function supportsInterface(
         bytes4 interfaceId
     ) public view override(ERC721, ERC2981) returns (bool) {
-        return super.supportsInterface(interfaceId);
+        return interfaceId == 0x49064906 || super.supportsInterface(interfaceId);
     }
 
     // ============ Admin ============

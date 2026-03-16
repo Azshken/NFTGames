@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Fetch product data from DB — needed to build the frozen metadata snapshot
     const productResult = await sql`
-      SELECT p.name, p.genre, p.description, p.image_cid
+      SELECT p.name, p.genre, p.description, p.image_claimed_cid
       FROM products p
       WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
       LIMIT 1
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       const product   = productResult.rows[0];
       const gameName  = product.name        ?? "Unknown Game";
       const genre     = product.genre       ?? "";
-      const imageCid  = product.image_cid   ?? null;
+      const imageCid  = product.image_claimed_cid   ?? null;
 
       // Only attempt Pinata upload if we have the image CID and JWT configured
       if (imageCid && process.env.PINATA_JWT) {
