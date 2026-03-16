@@ -686,7 +686,7 @@ const Home: NextPage = () => {
     <div className="min-h-screen bg-[#0d0f14] text-zinc-100 pt-15">
 
       {/* ── HERO ─────────────────────────────────────────── */}
-      <div className="relative h-72 md:h-96 overflow-hidden">
+      <div className="relative h-72 md:h-64 overflow-hidden">
         {selectedProduct?.image_cid && (
           <Image src={selectedProduct.image_cid} alt="" fill className="object-cover scale-110 blur-2xl opacity-25" unoptimized />
         )}
