@@ -683,7 +683,7 @@ const Home: NextPage = () => {
                 {selectedProduct.image_cid && (
                   <figure className="px-6 pt-6">
                     <Image
-                      src={`https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}${selectedProduct.image_cid}`}
+                      src={`https://${process.env.NEXT_PUBLIC_PINATA_GATEWAY}/ipfs/${selectedProduct.image_cid}`}
                       alt={selectedProduct.name}
                       width={384}
                       height={192}
