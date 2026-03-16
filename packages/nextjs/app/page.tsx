@@ -675,24 +675,27 @@ const Home: NextPage = () => {
             {products.map(selectedProduct => (
               <div
                 key={selectedProduct.product_id}
-                className={`card bg-base-100 shadow-xl cursor-pointer border-2 transition-colors ${
+                className={`card bg-base-100 shadow-xl cursor-pointer border-2 transition-colors w-44 flex-shrink-0 ${
                   selectedProduct?.product_id === selectedProduct.product_id ? "border-primary" : "border-transparent"
                 }`}
                 onClick={() => setSelectedProduct(selectedProduct)}
               >
                 {selectedProduct.image_cid && (
-                  <figure className="px-6 pt-6">
-                    <Image
-                      src={`${selectedProduct.image_cid}`} // db saves the whole link no NEXT_PUBLIC_PINATA_GATWAY is needed
-                      alt={selectedProduct.name}
-                      width={384}
-                      height={192}
-                      className="rounded-xl object-cover w-full"
-                    />
+                  <figure className="px-4 pt-4">
+                    <div className="relative w-full h-24 rounded-xl overflow-hidden">
+                      <Image
+                        src={selectedProduct.image_cid} // db saves the whole link no NEXT_PUBLIC_PINATA_GATWAY is needed
+                        alt={selectedProduct.name}
+                        width={384}
+                        height={192}
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
                   </figure>
                 )}
-                <div className="card-body items-center text-center py-4 px-6">
-                  <h2 className="card-title text-base">{selectedProduct.name}</h2>
+                <div className="card-body items-center text-center py-3 px-3">
+                  <h2 className="card-title text-sm leading-tight text-center">{selectedProduct.name}</h2>
                   <p className="text-xs text-base-content/70">{selectedProduct.genre}</p>
                 </div>
               </div>
@@ -724,11 +727,12 @@ const Home: NextPage = () => {
               {selectedProduct.image_cid && (
                 <figure className="px-6 pt-6">
                   <Image
-                    src={`${selectedProduct.image_cid}`}
+                    src={selectedProduct.image_cid}
                     alt={selectedProduct.name}
                     width={384}
                     height={192}
                     className="rounded-xl object-cover w-full"
+                    unoptimized
                   />
                 </figure>
               )}
