@@ -7,9 +7,10 @@ import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
 import { useTheme } from "next-themes";
 import { Toaster } from "react-hot-toast";
 import { WagmiProvider } from "wagmi";
+import { RainbowKitCustomConnectButton} from "~~/components/scaffold-eth";
+
 
 import { Footer } from "~~/components/Footer";
-import { Header } from "~~/components/Header";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 
@@ -17,7 +18,19 @@ const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
       <div className={`flex flex-col min-h-screen `}>
-        <Header />
+          <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 bg-[#0d0f14]/80 backdrop-blur-md border-b border-zinc-900">
+
+            {/* Left: brand */}
+            <span className="text-m font-bold tracking-widest text-emerald-400 uppercase">
+              SoulKey
+            </span>
+
+            {/* Right: network + balance + wallet */}
+            <div className="flex items-center gap-3">
+              <RainbowKitCustomConnectButton />
+            </div>
+
+          </nav>
         <main className="relative flex flex-col flex-1">{children}</main>
         <Footer />
       </div>

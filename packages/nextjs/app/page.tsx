@@ -617,324 +617,424 @@ const Home: NextPage = () => {
     }
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Frontend render helpers ───────────────────────────────────────────────
 
-  if (productsLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen flex-col gap-4">
-        <span className="loading loading-spinner loading-lg" />
-        <p className="text-base-content/70">Loading games...</p>
-      </div>
-    );
-  }
+  const cardRef = useRef<HTMLDivElement>(null);
+  const sheenRef = useRef<HTMLDivElement>(null);
 
-  if (productsError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen flex-col gap-4">
-        <div className="alert alert-error max-w-md">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="stroke-current shrink-0 h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span>{productsError}</span>
-        </div>
-        {/* loadProducts() re-runs the fetch without destroying wallet state */}
-        <button className="btn btn-outline" onClick={loadProducts}>
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = cardRef.current;
+    const sheen = sheenRef.current;
+    if (!card || !sheen) return;
+
+    const { left, top, width, height } = card.getBoundingClientRect();
+    const x = (e.clientX - left) / width;   // 0 to 1
+    const y = (e.clientY - top) / height;
+
+    // 3D tilt
+    card.style.transform = `perspective(600px) rotateY(${(x - 0.5)*16}deg) rotateX(${(y - 0.5)*16}deg) scale(1.04)`;
+
+    // Sheen sits opposite the tilt — light reflects away from the raised edge
+    const sheenX = (1 - x) * 100;
+    const sheenY = (1 - y) * 100;
+
+    sheen.style.background = `
+      radial-gradient(circle at ${sheenX}% ${sheenY}%,
+        rgba(255,255,255,0.10) 0%,
+        rgba(255,255,255,0.02) 40%,
+        transparent 70%),
+      linear-gradient(
+        ${105 + x * 60}deg,
+        transparent 30%,
+        rgba(180,140,255,0.03) 45%,
+        rgba(100,210,255,0.04) 55%,
+        transparent 70%
+      )
+    `;
+    sheen.style.opacity = "1";
+  };
+
+    const handleMouseLeave = () => {
+      const card = cardRef.current;
+      const sheen = sheenRef.current;
+      if (card) card.style.transform = "perspective(600px) rotateY(0deg) rotateX(0deg) scale(1)"
+        if (sheen) sheen.style.opacity ="0";
+    };
+
+// ─── Render ───────────────────────────────────────────────────────────────
+  if (productsLoading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0d0f14] flex-col gap-4">
+      <span className="loading loading-spinner loading-lg text-emerald-500" />
+      <p className="text-zinc-500 text-sm">Loading games...</p>
+    </div>
+  );
+
+  if (productsError) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0d0f14] flex-col gap-4">
+      <div className="bg-red-950 border border-red-800 rounded-2xl p-6 max-w-md text-center">
+        <p className="text-red-400 mb-4">{productsError}</p>
+        <button onClick={loadProducts} className="px-6 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-semibold transition-all">
           Retry
         </button>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const isSoldOut = totalSupply !== undefined && maxSupply !== undefined && totalSupply >= maxSupply;
 
   return (
-    <div className="flex items-center flex-col grow pt-10">
-      <div className="px-5 w-full max-w-4xl">
-        <h1 className="text-center">
-          <span className="block text-4xl font-bold mb-8">SoulKey</span>
-        </h1>
-        <p className="subtitle flex items-center justify-center font-medium">Virtual Game Keys</p>
+    <div className="min-h-screen bg-[#0d0f14] text-zinc-100 pt-15">
 
-        {/* Contract address */}
-        <div className="flex justify-center items-center flex-col mb-8">
-          <p className="my-2 font-medium">Contract Address</p>
-          <span className="font-mono text-sm break-all">{contractAddress}</span>
-        </div>
-
-        {/* Game selector — only rendered when there are multiple products */}
-        {products.length > 1 && (
-          <div className="flex justify-center gap-4 mb-8 flex-wrap">
-            {products.map(selectedProduct => (
-              <div
-                key={selectedProduct.product_id}
-                className={`card bg-base-100 shadow-xl cursor-pointer border-2 transition-colors w-44 flex-shrink-0 ${
-                  selectedProduct?.product_id === selectedProduct.product_id ? "border-primary" : "border-transparent"
-                }`}
-                onClick={() => setSelectedProduct(selectedProduct)}
-              >
-                {selectedProduct.image_cid && (
-                  <figure className="px-4 pt-4">
-                    <div className="relative w-full h-24 rounded-xl overflow-hidden">
-                      <Image
-                        src={selectedProduct.image_cid} // db saves the whole link no NEXT_PUBLIC_PINATA_GATWAY is needed
-                        alt={selectedProduct.name}
-                        width={384}
-                        height={192}
-                        className="object-cover"
-                        unoptimized
-                      />
-                    </div>
-                  </figure>
-                )}
-                <div className="card-body items-center text-center py-3 px-3">
-                  <h2 className="card-title text-sm leading-tight text-center">{selectedProduct.name}</h2>
-                  <p className="text-xs text-base-content/70">{selectedProduct.genre}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ── HERO ─────────────────────────────────────────── */}
+      <div className="relative h-72 md:h-96 overflow-hidden">
+        {selectedProduct?.image_cid && (
+          <Image src={selectedProduct.image_cid} alt="" fill className="object-cover scale-110 blur-2xl opacity-25" unoptimized />
         )}
-
-        {/* Supply & price — min-h prevents layout shift while data loads */}
-        <div className="text-center mb-4 min-h-[3.5rem]">
-          {contractLoading ? (
-            <span className="loading loading-dots loading-sm" />
-          ) : (
-            <>
-              <p className="text-lg">
-                Supply: {totalSupply?.toString() ?? "—"} / {maxSupply?.toString() ?? "—"}
-              </p>
-              <p className="text-lg mt-1">
-                Price: {mintPriceETH !== undefined ? formatEther(mintPriceETH) : "—"} ETH or{" "}
-                {mintPriceUSD !== undefined ? (Number(mintPriceUSD) / 1e6).toFixed(2) : "—"} USDC/USDT
-              </p>
-            </>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0d0f14]/20 via-[#0d0f14]/50 to-[#0d0f14]" />
+        <div className="relative z-10 flex flex-col justify-end h-full px-6 pb-10 max-w-6xl mx-auto">
+          <p className="text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase mb-2">SoulKey Store</p>
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white drop-shadow-xl">
+            {selectedProduct?.name ?? "Virtual Game Keys"}
+          </h1>
+          {selectedProduct?.genre && (
+            <p className="text-zinc-400 mt-1 text-sm">{selectedProduct.genre}</p>
           )}
         </div>
+      </div>
 
-        {/* Game card */}
+      <div className="max-w-6xl mx-auto px-4 md:px-6 -mt-2 pb-16">
+
+        {/* ── GAME SELECTOR TABS ───────────────────────────── */}
+        {products.length > 1 && (
+          <div className="flex gap-2 mb-8 overflow-x-auto pb-1 scrollbar-hide">
+            {products.map(product => (
+              <button
+                key={product.product_id}
+                onClick={() => setSelectedProduct(product)}
+                className={`flex items-center gap-2.5 px-4 py-2 rounded-full border text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+                  selectedProduct?.product_id === product.product_id
+                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-md shadow-emerald-500/10"
+                    : "border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                }`}
+              >
+                {product.image_cid && (
+                  <div className="relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
+                    <Image src={product.image_cid} alt="" fill className="object-cover" unoptimized />
+                  </div>
+                )}
+                {product.name}
+                {selectedProduct?.product_id === product.product_id && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── MAIN TWO-COLUMN LAYOUT ───────────────────────── */}
         {selectedProduct && (
-          <div className="flex justify-center mb-8">
-            <div className="card bg-base-100 shadow-xl max-w-sm w-full">
-              {selectedProduct.image_cid && (
-                <figure className="px-6 pt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 mb-12">
+
+            {/* LEFT: 3D game cover */}
+            <div>
+              <div
+                ref={cardRef}
+                className="card-tilt relative rounded-2xl overflow-hidden shadow-2xl shadow-black/60 cursor-default"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              >
+                <div ref={sheenRef} className="card-sheen-overlay" />
+                {selectedProduct.image_cid ? (
                   <Image
                     src={selectedProduct.image_cid}
-                    alt={selectedProduct.name}
-                    width={384}
-                    height={192}
-                    className="rounded-xl object-cover w-full"
+                    alt=""
+                    width={720}
+                    height={405}
+                    className="w-full object-cover"
                     unoptimized
                   />
-                </figure>
+                ) : (
+                  <div className="w-full aspect-video bg-zinc-900 flex items-center justify-center">
+                    <span className="text-zinc-600 text-sm">No artwork</span>
+                  </div>
+                )}
+                {/* Soulbound badge overlaid on image if claimed */}
+                {isClaimed && selectedTokenId > 0 && (
+                  <div className="absolute top-3 right-3 bg-violet-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full border border-violet-400/30">
+                    ⛓ Soulbound
+                  </div>
+                )}
+              </div>
+
+              {/* Supply + contract address */}
+              <div className="flex items-center gap-4 mt-4 flex-wrap">
+                {contractLoading ? (
+                  <span className="loading loading-dots loading-xs text-zinc-600" />
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${isSoldOut ? "bg-red-400" : "bg-emerald-400 animate-pulse"}`} />
+                      <span className="text-xs text-zinc-400">
+                        {isSoldOut ? "Sold out" : `${totalSupply?.toString() ?? "—"} / ${maxSupply?.toString() ?? "—"} minted`}
+                      </span>
+                    </div>
+                    <span className="text-zinc-700">•</span>
+                    <span className="text-xs font-mono text-zinc-600">
+                      {contractAddress?.slice(0, 8)}...{contractAddress?.slice(-6)}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {selectedProduct.description && (
+                <p className="text-sm text-zinc-400 mt-4 leading-relaxed">{selectedProduct.description}</p>
               )}
-              <div className="card-body items-center text-center">
-                <h2 className="card-title">{selectedProduct.name}</h2>
-                <p className="text-sm text-base-content/70">{selectedProduct.genre}</p>
-                {selectedProduct.description && <p className="text-sm">{selectedProduct.description}</p>}
+            </div>
+
+            {/* RIGHT: Purchase panel */}
+            <div className="flex flex-col gap-4">
+
+              {/* Price */}
+              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-5">
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2">Price</p>
+                {contractLoading ? (
+                  <span className="loading loading-dots loading-sm text-zinc-500" />
+                ) : (
+                  <>
+                    <p className="text-3xl font-black text-zinc-100">
+                      {mintPriceETH !== undefined ? formatEther(mintPriceETH) : "—"}
+                      <span className="text-zinc-500 text-lg font-normal ml-1">ETH</span>
+                    </p>
+                    <p className="text-sm text-zinc-500 mt-1">
+                      ≈ {mintPriceUSD !== undefined ? (Number(mintPriceUSD) / 1e6).toFixed(2) : "—"} USDC / USDT
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Payment method */}
+              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-5">
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">Pay with</p>
+                <div className="flex gap-2">
+                  {(["ETH", "USDT", "USDC"] as const).map(method => (
+                    <button
+                      key={method}
+                      onClick={() => setSelectedPayment(method)}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150 ${
+                        selectedPayment === method
+                          ? "bg-emerald-500 border-emerald-500 text-black shadow-md shadow-emerald-500/25"
+                          : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                      }`}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mint button */}
+              <button
+                onClick={handleMint}
+                disabled={loading || !connectedAddress || !contractAddress || mintPriceETH === undefined || contractLoading || isSoldOut}
+                className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-150 shadow-lg
+                  bg-emerald-500 hover:bg-emerald-400 text-black
+                  disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed disabled:shadow-none
+                  shadow-emerald-500/20"
+              >
+                {loading && mintingStep
+                  ? <span className="flex items-center justify-center gap-2"><span className="loading loading-spinner loading-xs" />{mintingStep}</span>
+                  : isSoldOut
+                    ? "Sold Out"
+                    : !connectedAddress
+                      ? "Connect Wallet to Mint"
+                      : `Mint with ${selectedPayment} →`
+                }
+              </button>
+
+              {/* How it works */}
+              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-5">
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">How it works</p>
+                <ol className="space-y-3">
+                  {[
+                    { icon: "🎟️", title: "Mint your NFT",      sub: "CD key reserved via commitment hash" },
+                    { icon: "🔑", title: "Claim your key",     sub: "Encrypted with MetaMask, NFT becomes soulbound" },
+                    { icon: "👁️", title: "Reveal anytime",     sub: "Decrypt locally with your MetaMask key" },
+                    { icon: "↩️", title: "14-day refund",      sub: "Before claiming only — 5% fee retained" },
+                  ].map(({ icon, title, sub }) => (
+                    <li key={title} className="flex items-start gap-3">
+                      <span className="text-base mt-0.5 leading-none">{icon}</span>
+                      <div>
+                        <span className="text-sm text-zinc-200 font-medium">{title}</span>
+                        <p className="text-xs text-zinc-600 mt-0.5">{sub}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
               </div>
             </div>
           </div>
         )}
 
-        {/* Payment method */}
-        <div className="flex justify-center mb-8">
-          <div className="join">
-            {(["ETH", "USDT", "USDC"] as const).map(method => (
-              <button
-                key={method}
-                className={`btn join-item ${selectedPayment === method ? "btn-active btn-primary" : ""}`}
-                onClick={() => setSelectedPayment(method)}
-                disabled={loading}
-              >
-                {method}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Mint — also disabled during contractLoading to prevent stale-price mint */}
-        <div className="flex justify-center mb-8">
-          <button
-            className="btn btn-primary btn-lg w-full max-w-md"
-            onClick={handleMint}
-            disabled={loading || !connectedAddress || !contractAddress || mintPriceETH === undefined || contractLoading}
-          >
-            {loading && mintingStep ? mintingStep : `Mint NFT with ${selectedPayment}`}
-          </button>
-        </div>
-
-        {/* Owned tokens */}
-        {tokensLoading ? (
-          <div className="flex justify-center mb-8">
-            <span className="loading loading-spinner loading-md" />
-          </div>
-        ) : ownedTokens.length > 0 ? (
-          <div className="card bg-base-200 shadow-xl p-6 mb-8">
-            <h2 className="text-2xl font-bold mb-4">Your NFTs &amp; CD Keys</h2>
-
-            <div className="form-control mb-4">
-              <label className="label">
-                <span className="label-text">Select Your Token</span>
-              </label>
-              <select
-                className="select select-bordered"
-                value={selectedTokenId}
-                onChange={e => {
-                  setSelectedTokenId(Number(e.target.value));
-                  setRevealedKey("");
-                }}
-                disabled={loading}
-              >
-                {ownedTokens.map(tokenId => (
-                  <option key={tokenId} value={tokenId}>
-                    Token #{tokenId}
-                  </option>
-                ))}
-              </select>
-              {selectedTokenId > 0 && (
-                <label className="label">
-                  <span className="label-text-alt">
-                    {isClaimed ? "✅ CD Key Claimed — NFT is Soulbound" : "⏳ CD Key Not Claimed Yet"}
-                  </span>
-                  {!isClaimed && refundWindowHoursLeft !== null && (
-                    <span className={`label-text-alt ${refundWindowHoursLeft < 24 ? "text-error" : "text-warning"}`}>
-                      Refund window: {refundWindowHoursLeft}h left
-                    </span>
-                  )}
-                </label>
-              )}
+        {/* ── YOUR LIBRARY ─────────────────────────────────── */}
+        {connectedAddress && (
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-zinc-100">Your Library</h2>
+              {tokensLoading && <span className="loading loading-dots loading-xs text-zinc-600" />}
             </div>
 
-            {/* Claim */}
-            {selectedTokenId > 0 && !isClaimed && (
-              <button
-                className="btn btn-accent w-full mb-4"
-                onClick={handleClaimCDKey}
-                disabled={loading || !connectedAddress}
-              >
-                {loading ? mintingStep || "Processing..." : "Claim CD Key (Makes NFT Soulbound)"}
-              </button>
+            {!tokensLoading && ownedTokens.length === 0 && (
+              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-8 text-center">
+                <p className="text-zinc-600 text-sm">No tokens yet — mint your first SoulKey above.</p>
+              </div>
             )}
 
-            {/* Refund */}
-            {selectedTokenId > 0 && !isClaimed && isRefundable && (
-              <div className="mb-4">
-                {!showRefundInput ? (
-                  <button
-                    className="btn btn-outline btn-error w-full"
-                    onClick={() => setShowRefundInput(true)}
-                    disabled={loading}
-                  >
-                    Request Refund (5% fee retained)
-                  </button>
-                ) : (
-                  <div className="card bg-base-100 p-4 border border-error">
-                    <p className="text-sm text-error font-bold mb-2">
-                      This will burn your NFT and refund 95% of the payment.
-                    </p>
-                    <textarea
-                      className="textarea textarea-bordered w-full mb-2"
-                      placeholder="Reason for refund (optional)"
-                      value={refundReason}
-                      onChange={e => setRefundReason(e.target.value)}
-                      rows={2}
-                      maxLength={280}
-                    />
-                    <div className="flex gap-2">
-                      <button className="btn btn-error flex-1" onClick={handleRefund} disabled={loading}>
-                        {loading ? mintingStep || "Processing..." : "Confirm Refund"}
-                      </button>
-                      <button
-                        className="btn btn-ghost flex-1"
-                        onClick={() => setShowRefundInput(false)}
-                        disabled={loading}
-                      >
-                        Cancel
-                      </button>
+            {ownedTokens.length > 0 && (
+              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-6">
+
+                {/* Token pills */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {ownedTokens.map(tokenId => (
+                    <button
+                      key={tokenId}
+                      onClick={() => { setSelectedTokenId(tokenId); setRevealedKey(""); }}
+                      disabled={loading}
+                      className={`px-4 py-2 rounded-xl text-sm font-mono font-semibold border transition-all duration-150 ${
+                        selectedTokenId === tokenId
+                          ? "bg-zinc-100 border-zinc-100 text-zinc-900"
+                          : "bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                      }`}
+                    >
+                      #{tokenId}
+                    </button>
+                  ))}
+                </div>
+
+                {selectedTokenId > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start">
+
+                    {/* Status badges */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isClaimed ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-violet-400" /> Soulbound · Key Claimed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Key Not Claimed
+                        </span>
+                      )}
+                      {!isClaimed && refundWindowHoursLeft !== null && (
+                        <span className={`text-xs px-3 py-1.5 rounded-full border ${
+                          refundWindowHoursLeft < 24
+                            ? "bg-red-900/20 border-red-800 text-red-400"
+                            : "bg-amber-900/20 border-amber-800 text-amber-400"
+                        }`}>
+                          ⏱ {refundWindowHoursLeft}h refund window left
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-3 min-w-0 md:min-w-[280px]">
+
+                      {/* Claim */}
+                      {!isClaimed && (
+                        <button
+                          onClick={handleClaimCDKey}
+                          disabled={loading || !connectedAddress}
+                          className="w-full py-3 rounded-xl font-semibold bg-violet-600 hover:bg-violet-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white transition-all duration-150 shadow-md shadow-violet-500/20"
+                        >
+                          {loading && mintingStep
+                            ? <span className="flex items-center justify-center gap-2"><span className="loading loading-spinner loading-xs" />{mintingStep}</span>
+                            : "🔑 Claim CD Key — Makes NFT Soulbound"
+                          }
+                        </button>
+                      )}
+
+                      {/* Reveal */}
+                      {isClaimed && (
+                        <>
+                          <button
+                            onClick={handleRevealCDKey}
+                            disabled={loading || !connectedAddress}
+                            className="w-full py-3 rounded-xl font-semibold bg-sky-600 hover:bg-sky-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white transition-all duration-150 shadow-md shadow-sky-500/20"
+                          >
+                            {loading && mintingStep
+                              ? <span className="flex items-center justify-center gap-2"><span className="loading loading-spinner loading-xs" />{mintingStep}</span>
+                              : "👁️ Reveal CD Key"
+                            }
+                          </button>
+
+                          {revealedKey && (
+                            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] text-zinc-600 uppercase tracking-widest">Your CD Key</span>
+                                <button
+                                  onClick={() => { navigator.clipboard.writeText(revealedKey); notification.success("Copied!"); }}
+                                  className="text-xs text-zinc-500 hover:text-zinc-200 transition-colors font-medium"
+                                >
+                                  Copy ↗
+                                </button>
+                              </div>
+                              <p className="font-mono text-emerald-400 text-sm tracking-wider break-all">{revealedKey}</p>
+                              <p className="text-xs text-amber-600 mt-3">⚠ Unique one-time use — store it safely</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Refund */}
+                      {!isClaimed && isRefundable && (
+                        <>
+                          {!showRefundInput ? (
+                            <button
+                              onClick={() => setShowRefundInput(true)}
+                              disabled={loading}
+                              className="w-full py-2.5 rounded-xl text-sm font-semibold border border-zinc-700 text-zinc-500 hover:border-red-800 hover:text-red-400 hover:bg-red-950/20 transition-all duration-150"
+                            >
+                              Request Refund — 5% fee retained
+                            </button>
+                          ) : (
+                            <div className="bg-zinc-950 border border-red-900/50 rounded-xl p-4">
+                              <p className="text-xs text-red-400 font-semibold mb-3">
+                                ⚠ This will burn your NFT and refund 95% of the payment.
+                              </p>
+                              <textarea
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-sm text-zinc-200 placeholder-zinc-700 mb-3 resize-none focus:outline-none focus:border-zinc-600 transition-colors"
+                                placeholder="Reason for refund (optional)"
+                                value={refundReason}
+                                onChange={e => setRefundReason(e.target.value)}
+                                rows={2}
+                                maxLength={280}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleRefund}
+                                  disabled={loading}
+                                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white transition-all"
+                                >
+                                  {loading && mintingStep ? mintingStep : "Confirm Refund"}
+                                </button>
+                                <button
+                                  onClick={() => setShowRefundInput(false)}
+                                  disabled={loading}
+                                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-all"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
             )}
-
-            {/* Reveal */}
-            {selectedTokenId > 0 && isClaimed && (
-              <>
-                <div className="divider">Your CD Key</div>
-                <button
-                  className="btn btn-info w-full mb-4"
-                  onClick={handleRevealCDKey}
-                  disabled={loading || !connectedAddress}
-                >
-                  {loading ? mintingStep || "Processing..." : "Reveal CD Key"}
-                </button>
-                {revealedKey && (
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text font-bold">Your Game CD Key</span>
-                    </label>
-                    <div className="mockup-code">
-                      <pre className="text-success">
-                        <code>{revealedKey}</code>
-                      </pre>
-                    </div>
-                    <div className="flex justify-end mt-2">
-                      <button
-                        className="btn btn-sm btn-outline"
-                        onClick={() => {
-                          navigator.clipboard.writeText(revealedKey);
-                          notification.success("Copied!");
-                        }}
-                      >
-                        Copy Key
-                      </button>
-                    </div>
-                    <label className="label">
-                      <span className="label-text-alt text-warning">
-                        This key is unique and can only be used once. Keep it safe!
-                      </span>
-                    </label>
-                  </div>
-                )}
-              </>
-            )}
           </div>
-        ) : null}
-
-        {/* How it works */}
-        <div className="alert alert-info shadow-lg mb-8">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            className="stroke-current flex-shrink-0 w-6 h-6"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <div>
-            <h3 className="font-bold">How it works</h3>
-            <ol className="text-xs list-decimal list-inside space-y-1 mt-1">
-              <li>Mint your NFT — a CD key is reserved for you on-chain via commitment hash</li>
-              <li>Claim your CD key — encrypted with your MetaMask key, stored on-chain; NFT becomes soulbound</li>
-              <li>Reveal your CD key anytime by decrypting with MetaMask</li>
-              <li>Not satisfied? Request a refund within 14 days before claiming — 5% fee applies</li>
-            </ol>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

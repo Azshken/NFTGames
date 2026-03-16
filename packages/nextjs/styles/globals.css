@@ -121,3 +121,50 @@
 .link:hover {
   opacity: 80%;
 }
+
+/* Sheen effect for cards */
+.card-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-sheen::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -75%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg) translateX(0);
+  transition: left 0.5s ease;
+  pointer-events: none;
+}
+
+.card-sheen:hover::after {
+  left: 150%;
+}
+
+.card-tilt {
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease;
+}
+
+.card-sheen-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+/* Hide scrollbar on game selector */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
