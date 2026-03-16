@@ -683,7 +683,7 @@ const Home: NextPage = () => {
                 {selectedProduct.image_cid && (
                   <figure className="px-6 pt-6">
                     <Image
-                      src={`${selectedProduct.image_cid}`}
+                      src={`${selectedProduct.image_cid}`} // db saves the whole link no NEXT_PUBLIC_PINATA_GATWAY is needed
                       alt={selectedProduct.name}
                       width={384}
                       height={192}
@@ -724,7 +724,7 @@ const Home: NextPage = () => {
               {selectedProduct.image_cid && (
                 <figure className="px-6 pt-6">
                   <Image
-                    src={`https://gateway.pinata.cloud/ipfs/${selectedProduct.image_cid}`}
+                    src={`${selectedProduct.image_cid}`}
                     alt={selectedProduct.name}
                     width={384}
                     height={192}
