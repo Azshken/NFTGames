@@ -156,6 +156,17 @@ Refactoring the code:
 - Worked on the frontend fixes.
 - Created a CHANGELOG.md
 
+14/03/26
+
+- Fixed the refund issue.
+
+16/03/26
+
+- Decided the pinata architecture dynamic or static metadata. I'm staying with static metadat.
+- Added a new image with a claimed game watermark. Claim -> frozen_metadata issued.
+- Updated the SoulKey.sol to support EIP-4906 (needs redeploy).
+- Redesigned the web site.
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
