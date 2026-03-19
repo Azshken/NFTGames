@@ -45,6 +45,7 @@ export const SOULKEY_ABI = parseAbi([
 
 export const VAULT_ABI = parseAbi([
   "function isRefundable(address soulKeyContract, uint256 tokenId) view returns (bool)",
+  'function deregisterGame(address soulKeyContract) external',
   "function registeredGames(address) view returns (bool)",
   "function owner() view returns (address)",
   // paymentRecords tuple: (address paymentToken, uint48 paidAt, uint8 status, uint256 amount, address payer)

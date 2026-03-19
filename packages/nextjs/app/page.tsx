@@ -35,6 +35,11 @@ type Product = {
   image_cid: string | null;
 };
 
+type LibraryGame = Product & {
+  token_ids: number[];
+  is_active: boolean;
+};
+
 // Mirrors MasterKeyVault.PaymentRecord:
 //   (address paymentToken, uint48 paidAt, uint8 status, uint256 amount, address payer)
 // If the Solidity struct field order changes, update this type and the paidAt index below —
@@ -81,7 +86,6 @@ const Home: NextPage = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
-
   const contractAddress = selectedProduct?.contract_address;
 
   // Extracted as useCallback so the Retry button can call it directly without a
@@ -131,21 +135,56 @@ const Home: NextPage = () => {
   const mintPriceUSD = contractReads?.[1]?.result as bigint | undefined;
   const totalSupply = contractReads?.[2]?.result as bigint | undefined;
   const maxSupply = contractReads?.[3]?.result as bigint | undefined;
+  const isSoldOut    = totalSupply !== undefined && maxSupply !== undefined && totalSupply >= maxSupply;
 
-  // ─── Token state ───────────────────────────────────────────────────────────
+  // ── Library state ──────────────────────────────────────────────────────────
+  const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
+  const [selectedLibraryGame, setSelectedLibraryGame] = useState<LibraryGame | null>(null);
+  const [selectedLibraryTokenId, setSelectedLibraryTokenId] = useState<number>(0);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const libraryContractAddress = selectedLibraryGame?.contract_address;
 
-  const [ownedTokens, setOwnedTokens] = useState<number[]>([]);
-  const [selectedTokenId, setSelectedTokenId] = useState<number>(0);
-  const [tokensLoading, setTokensLoading] = useState(false);
+    const fetchLibrary = useCallback(async () => {
+    if (!connectedAddress) {
+      setLibraryGames([]);
+      setSelectedLibraryGame(null);
+      setSelectedLibraryTokenId(0);
+      return;
+    }
+    setLibraryLoading(true);
+    try {
+      const d = await fetch(`/api/library?wallet=${connectedAddress}`).then(r => r.json());
+      if (d.success) {
+        setLibraryGames(d.games);
+        setSelectedLibraryGame(prev => {
+          const match = d.games.find((g: LibraryGame) => g.product_id === prev?.product_id);
+          const game: LibraryGame | null = match ?? d.games[0] ?? null;
+          if (game) {
+            setSelectedLibraryTokenId(prevTok =>
+              game.token_ids.includes(prevTok) ? prevTok : (game.token_ids[0] ?? 0),
+            );
+          }
+          return game;
+        });
+      }
+    } catch {
+      notification.error("Failed to load your library.");
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, [connectedAddress]);
 
+  useEffect(() => { fetchLibrary(); }, [fetchLibrary]);
+
+  // ── On-chain reads (library section) ──────────────────────────────────────
   // staleTime:0 ensures value is always re-fetched rather than served from cache.
   // wagmi v2 accepts address:undefined when enabled:false — no ! assertion needed.
   const { data: claimTimestamp, refetch: refetchClaimTimestamp } = useReadContract({
-    address: contractAddress,
+    address: libraryContractAddress,
     abi: SOULKEY_ABI,
     functionName: "getClaimTimestamp",
-    args: [BigInt(selectedTokenId || 0)],
-    query: { enabled: !!contractAddress && selectedTokenId > 0, staleTime: 0 },
+    args: [BigInt(selectedLibraryTokenId || 0)],
+    query: { enabled: !!libraryContractAddress && selectedLibraryTokenId > 0, staleTime: 0 },
   });
   const isClaimed = typeof claimTimestamp === "bigint" && claimTimestamp > 0n;
 
@@ -155,19 +194,19 @@ const Home: NextPage = () => {
   // Only an inline condition propagates the narrowing into the then-branch.
   const { data: refundReads } = useReadContracts({
     contracts:
-      VAULT_ADDRESS && contractAddress && selectedTokenId > 0 && !isClaimed
+      VAULT_ADDRESS && libraryContractAddress && selectedLibraryTokenId > 0 && !isClaimed
         ? ([
             {
               address: VAULT_ADDRESS,
               abi: VAULT_ABI,
               functionName: "isRefundable" as const,
-              args: [contractAddress, BigInt(selectedTokenId)] as const,
+              args: [libraryContractAddress, BigInt(selectedLibraryTokenId)] as const,
             },
             {
               address: VAULT_ADDRESS,
               abi: VAULT_ABI,
               functionName: "paymentRecords" as const,
-              args: [contractAddress, BigInt(selectedTokenId)] as const,
+              args: [libraryContractAddress, BigInt(selectedLibraryTokenId)] as const,
             },
           ] as const)
         : [],
@@ -176,16 +215,6 @@ const Home: NextPage = () => {
 
   const isRefundable = (refundReads?.[0]?.result as boolean | undefined) ?? false;
   
-  // TEMP DEBUG — remove after fixing
-  console.log("Refund debug:", {
-    VAULT_ADDRESS,
-    contractAddress,
-    selectedTokenId,
-    isClaimed,
-    refundReads,
-    isRefundable,
-  });
-
   // paidAt is typed as bigint | undefined — honest about the undefined case.
   // Previously the code destructured a fallback [] cast as PaymentRecord, which
   // typed paidAt as bigint even when the value was actually undefined at runtime.
@@ -199,57 +228,16 @@ const Home: NextPage = () => {
     ? Math.max(0, Math.floor((refundWindowExpiry.getTime() - Date.now()) / 3_600_000))
     : null;
 
-  // ─── Owned tokens ─────────────────────────────────────────────────────────
-  //
-  // Uses /api/tokens (DB query) instead of getLogs(fromBlock:0n).
-  // getLogs with fromBlock:0 breaks on mainnet — most RPC providers cap log queries
-  // to ~2000 blocks per request, silently returning empty results on long-running contracts.
-
-  const fetchOwnedTokens = useCallback(async () => {
-    if (!connectedAddress || !contractAddress) {
-      setOwnedTokens([]);
-      setSelectedTokenId(0);
-      return;
-    }
-    setTokensLoading(true);
-    try {
-      const d = await fetch(`/api/tokens?wallet=${connectedAddress}&contract=${contractAddress}`).then(r => r.json());
-
-      if (d.success) {
-        setOwnedTokens(d.tokens);
-        // Preserve selection if still valid; otherwise fall back to first token.
-        setSelectedTokenId(prev => (d.tokens.includes(prev) ? prev : (d.tokens[0] ?? 0)));
-      } else {
-        notification.error(`Could not load your tokens: ${d.error ?? "unknown error"}`);
-      }
-    } catch {
-      notification.error("Failed to load your tokens. Please refresh.");
-    } finally {
-      setTokensLoading(false);
-    }
-  }, [connectedAddress, contractAddress]);
-
-  // Initial fetch + re-fetch when wallet or game changes.
-  // Also resets prevSupplyRef so the supply-change effect below does not double-fire
-  // on the first poll tick after a game switch.
+  // ── Re-fetch library after new supply appears ──────────────────────────────
   const prevSupplyRef = useRef<bigint | undefined>(undefined);
-  useEffect(() => {
-    prevSupplyRef.current = undefined;
-    fetchOwnedTokens();
-  }, [fetchOwnedTokens]);
-
-  // Re-fetch only when totalSupply actually increases (new mint detected on-chain).
-  // Avoids hitting the DB on every 15s poll tick regardless of whether anything changed.
+  useEffect(() => { prevSupplyRef.current = undefined; fetchLibrary(); }, [fetchLibrary]);
   useEffect(() => {
     if (totalSupply === undefined) return;
-    if (prevSupplyRef.current !== undefined && totalSupply > prevSupplyRef.current) {
-      fetchOwnedTokens();
-    }
+    if (prevSupplyRef.current !== undefined && totalSupply > prevSupplyRef.current) fetchLibrary();
     prevSupplyRef.current = totalSupply;
-  }, [totalSupply, fetchOwnedTokens]);
+  }, [totalSupply, fetchLibrary]);
 
   // ─── UI state ──────────────────────────────────────────────────────────────
-
   const [selectedPayment, setSelectedPayment] = useState<"ETH" | "USDT" | "USDC">("ETH");
   const [revealedKey, setRevealedKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -262,11 +250,11 @@ const Home: NextPage = () => {
   useEffect(() => {
     setRevealedKey("");
     setShowRefundInput(false);
-  }, [contractAddress]);
+  }, [libraryContractAddress]);
   useEffect(() => {
     setRevealedKey("");
     setShowRefundInput(false);
-  }, [selectedTokenId]);
+  }, [selectedLibraryTokenId]);
 
   // ─── Mint ─────────────────────────────────────────────────────────────────
 
@@ -395,16 +383,15 @@ const Home: NextPage = () => {
           `NFT minted on-chain (tx: ${txHash.slice(0, 10)}…) but the server record failed ` +
             `— please contact support with your transaction hash.`,
         );
-        setOwnedTokens(prev => (prev.includes(Number(mintedTokenId)) ? prev : [...prev, Number(mintedTokenId!)]));
-        setSelectedTokenId(Number(mintedTokenId));
+        await fetchLibrary();
         return;
       }
 
       // DB is now consistent — fetch authoritative state.
       // No optimistic update: avoids a race condition where a polling-triggered
       // fetchOwnedTokens fires before link-token completes and wipes the new token.
-      await fetchOwnedTokens();
-      setSelectedTokenId(Number(mintedTokenId));
+      await fetchLibrary();
+      setSelectedLibraryTokenId(Number(mintedTokenId));
       notification.success(`NFT minted! Token #${mintedTokenId} — now claim your CD key.`);
     } catch (error: any) {
       console.error("Mint error", error);
@@ -418,7 +405,7 @@ const Home: NextPage = () => {
   // ─── Claim CD Key ─────────────────────────────────────────────────────────
 
   const handleClaimCDKey = async () => {
-    if (!connectedAddress || !selectedTokenId || !contractAddress) {
+    if (!connectedAddress || !selectedLibraryTokenId || !libraryContractAddress) {
       notification.error("Please select a token");
       return;
     }
@@ -444,7 +431,7 @@ const Home: NextPage = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tokenId: selectedTokenId,
+          tokenId: selectedLibraryTokenId,
           userAddress: connectedAddress,
           userPublicKey,
           contractAddress,
@@ -455,11 +442,11 @@ const Home: NextPage = () => {
 
       setMintingStep("Claiming CD key on blockchain...");
       const txHash = await writeContractAsync({
-        address: contractAddress,
+        address: libraryContractAddress,
         abi: SOULKEY_ABI,
         functionName: "claimCdKey",
         args: [
-          BigInt(selectedTokenId),
+          BigInt(selectedLibraryTokenId),
           toBytes32(redeemData.commitmentHash), // bytes32 — fixed length ✓
           toHexBytes(redeemData.encryptedCDKey), // bytes   — variable length ✓
         ],
@@ -476,8 +463,8 @@ const Home: NextPage = () => {
           userAddress: connectedAddress,
           txHash,
           blockNumber: receipt.blockNumber.toString(),
-          contractAddress,
-          tokenId: selectedTokenId.toString(),
+          contractAddress: libraryContractAddress,
+          tokenId: selectedLibraryTokenId.toString(),
         }),
       });
 
@@ -495,7 +482,7 @@ const Home: NextPage = () => {
   // ─── Reveal CD Key ────────────────────────────────────────────────────────
 
   const handleRevealCDKey = async () => {
-    if (!connectedAddress || !selectedTokenId || !contractAddress) {
+    if (!connectedAddress || !selectedLibraryTokenId || !libraryContractAddress) {
       notification.error("Please connect your wallet and select a token");
       return;
     }
@@ -512,10 +499,10 @@ const Home: NextPage = () => {
     setMintingStep("Retrieving encrypted CD key from blockchain...");
     try {
       const encryptedBytes = (await publicClient.readContract({
-        address: contractAddress,
+        address: libraryContractAddress,
         abi: SOULKEY_ABI,
         functionName: "getEncryptedCDKey",
-        args: [BigInt(selectedTokenId)],
+        args: [BigInt(selectedLibraryTokenId)],
         account: connectedAddress as `Ox${string}`,
       })) as `0x${string}`;
 
@@ -542,7 +529,7 @@ const Home: NextPage = () => {
   // ─── Refund ───────────────────────────────────────────────────────────────
 
   const handleRefund = async () => {
-    if (!connectedAddress || !selectedTokenId || !contractAddress || !VAULT_ADDRESS) {
+    if (!connectedAddress || !selectedLibraryTokenId || !libraryContractAddress || !VAULT_ADDRESS) {
       notification.error("Wallet or contract not ready");
       return;
     }
@@ -563,7 +550,7 @@ const Home: NextPage = () => {
         address: VAULT_ADDRESS,
         abi: VAULT_ABI,
         functionName: "processRefund",
-        args: [contractAddress, BigInt(selectedTokenId), reason],
+        args: [libraryContractAddress, BigInt(selectedLibraryTokenId), reason],
       });
 
       setMintingStep("Waiting for refund confirmation...");
@@ -591,8 +578,8 @@ const Home: NextPage = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contractAddress,
-          tokenId: selectedTokenId.toString(),
+          contractAddress: libraryContractAddress,
+          tokenId: selectedLibraryTokenId.toString(),
           refundedBy: connectedAddress,
           refundReason: reason,
           refundTxHash: txHash,
@@ -604,7 +591,7 @@ const Home: NextPage = () => {
       });
 
       // Fetch authoritative DB state — the refunds row now exists so token is excluded.
-      await fetchOwnedTokens();
+      await fetchLibrary();
       setShowRefundInput(false);
       setRefundReason(""); // clear so the next token starts with an empty textarea
       notification.success("Refund processed! NFT has been burned.");
@@ -661,7 +648,7 @@ const Home: NextPage = () => {
         if (sheen) sheen.style.opacity ="0";
     };
 
-// ─── Render ───────────────────────────────────────────────────────────────
+ // ── Render ─────────────────────────────────────────────────────────────────
   if (productsLoading) return (
     <div className="flex items-center justify-center min-h-screen bg-[#0d0f14] flex-col gap-4">
       <span className="loading loading-spinner loading-lg text-emerald-500" />
@@ -679,8 +666,6 @@ const Home: NextPage = () => {
       </div>
     </div>
   );
-
-  const isSoldOut = totalSupply !== undefined && maxSupply !== undefined && totalSupply >= maxSupply;
 
   return (
     <div className="min-h-screen bg-[#0d0f14] text-zinc-100 pt-14">
@@ -704,7 +689,7 @@ const Home: NextPage = () => {
 
       <div className="max-w-6xl mx-auto px-4 md:px-6 pb-16">
 
-        {/* ── GAME SELECTOR TABS ───────────────────────────── */}
+        {/* ── STORE GAME SELECTOR TABS ─────────────────────── */}
         {products.length > 1 && (
           <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
             {products.map(product => (
@@ -745,28 +730,20 @@ const Home: NextPage = () => {
               >
                 <div ref={sheenRef} className="card-sheen-overlay" />
                 {selectedProduct.image_cid ? (
-                  <Image
-                    src={selectedProduct.image_cid}
-                    alt=""
-                    width={720}
-                    height={405}
-                    className="w-full object-cover"
-                    unoptimized
-                  />
+                  <Image src={selectedProduct.image_cid} alt="" width={720} height={405} className="w-full object-cover" unoptimized />
                 ) : (
                   <div className="w-full aspect-video bg-zinc-900 flex items-center justify-center">
                     <span className="text-zinc-600 text-sm">No artwork</span>
                   </div>
                 )}
-                {/* Soulbound badge overlaid on image if claimed */}
-                {isClaimed && selectedTokenId > 0 && (
+                {isClaimed && selectedLibraryTokenId > 0 && selectedLibraryGame?.contract_address === contractAddress && (
                   <div className="absolute top-3 right-3 bg-violet-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full border border-violet-400/30">
                     ⛓ Soulbound
                   </div>
                 )}
               </div>
 
-              {/* Supply + contract address */}
+              {/* Supply + contract */}
               <div className="flex items-center gap-4 mt-4 flex-wrap">
                 {contractLoading ? (
                   <span className="loading loading-dots loading-xs text-zinc-600" />
@@ -843,11 +820,9 @@ const Home: NextPage = () => {
               >
                 {loading && mintingStep
                   ? <span className="flex items-center justify-center gap-2"><span className="loading loading-spinner loading-xs" />{mintingStep}</span>
-                  : isSoldOut
-                    ? "Sold Out"
-                    : !connectedAddress
-                      ? "Connect Wallet to Mint"
-                      : `Mint with ${selectedPayment} →`
+                  : isSoldOut         ? "Sold Out"
+                  : !connectedAddress ? "Connect Wallet to Mint"
+                  :                    `Mint with ${selectedPayment} →`
                 }
               </button>
 
@@ -856,10 +831,10 @@ const Home: NextPage = () => {
                 <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-3">How it works</p>
                 <ol className="space-y-3">
                   {[
-                    { icon: "🎟️", title: "Mint your NFT",      sub: "CD key reserved via commitment hash" },
-                    { icon: "🔑", title: "Claim your key",     sub: "Encrypted with MetaMask, NFT becomes soulbound" },
-                    { icon: "👁️", title: "Reveal anytime",     sub: "Decrypt locally with your MetaMask key" },
-                    { icon: "↩️", title: "14-day refund",      sub: "Before claiming only — 5% fee retained" },
+                    { icon: "🎟️", title: "Mint your NFT",  sub: "CD key reserved via commitment hash" },
+                    { icon: "🔑", title: "Claim your key", sub: "Encrypted with MetaMask, NFT becomes soulbound" },
+                    { icon: "👁️", title: "Reveal anytime", sub: "Decrypt locally with your MetaMask key" },
+                    { icon: "↩️", title: "14-day refund",  sub: "Before claiming only — 5% fee retained" },
                   ].map(({ icon, title, sub }) => (
                     <li key={title} className="flex items-start gap-3">
                       <span className="text-base mt-0.5 leading-none">{icon}</span>
@@ -880,63 +855,104 @@ const Home: NextPage = () => {
           <div className="mb-12">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-zinc-100">Your Library</h2>
-              {tokensLoading && <span className="loading loading-dots loading-xs text-zinc-600" />}
+              {libraryLoading && <span className="loading loading-dots loading-xs text-zinc-600" />}
             </div>
 
-            {!tokensLoading && ownedTokens.length === 0 && (
-              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-8 text-center">
+            {!libraryLoading && libraryGames.length === 0 && (
+              <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-6">
                 <p className="text-zinc-600 text-sm">No tokens yet — mint your first SoulKey above.</p>
               </div>
             )}
 
-            {ownedTokens.length > 0 && (
+            {libraryGames.length > 0 && (
               <div className="bg-[#161b22] border border-zinc-800 rounded-2xl p-6">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-6 items-start">
 
-                {/* Token pills */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {ownedTokens.map(tokenId => (
-                    <button
-                      key={tokenId}
-                      onClick={() => { setSelectedTokenId(tokenId); setRevealedKey(""); }}
-                      disabled={loading}
-                      className={`px-4 py-2 rounded-xl text-sm font-mono font-semibold border transition-all duration-150 ${
-                        selectedTokenId === tokenId
-                          ? "bg-zinc-100 border-zinc-100 text-zinc-900"
-                          : "bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
-                      }`}
-                    >
-                      #{tokenId}
-                    </button>
-                  ))}
-                </div>
+                  {/* ── LEFT: game tabs + token pills + status ── */}
+                  <div>
+                    {/* Library game selector tabs */}
+                    {libraryGames.length > 1 && (
+                      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
+                        {libraryGames.map(g => (
+                          <button
+                            key={g.product_id}
+                            onClick={() => {
+                              setSelectedLibraryGame(g);
+                              setSelectedLibraryTokenId(g.token_ids[0] ?? 0);
+                              setRevealedKey(""); setShowRefundInput(false);
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+                              selectedLibraryGame?.product_id === g.product_id
+                                ? "border-violet-500 bg-violet-500/10 text-violet-400 shadow-md shadow-violet-500/10"
+                                : "border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                            }`}
+                          >
+                            {g.image_cid && (
+                              <div className="relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
+                                <Image src={g.image_cid} alt="" fill className="object-cover" unoptimized />
+                              </div>
+                            )}
+                            {g.name}
+                            <span className="text-xs opacity-50">{g.token_ids.length}×</span>
+                            {!g.is_active && (
+                              <span className="text-xs text-amber-500 font-semibold">Delisted</span>
+                            )}
+                            {selectedLibraryGame?.product_id === g.product_id && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
-                {selectedTokenId > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start">
+                    {/* Token pills */}
+                    {selectedLibraryGame && selectedLibraryGame.token_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {selectedLibraryGame.token_ids.map(tokenId => (
+                          <button
+                            key={tokenId}
+                            onClick={() => { setSelectedLibraryTokenId(tokenId); setRevealedKey(""); setShowRefundInput(false); }}
+                            disabled={loading}
+                            className={`px-4 py-2 rounded-xl text-sm font-mono font-semibold border transition-all duration-150 ${
+                              selectedLibraryTokenId === tokenId
+                                ? "bg-zinc-100 border-zinc-100 text-zinc-900"
+                                : "bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                            }`}
+                          >
+                            #{tokenId}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Status badges */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isClaimed ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-violet-400" /> Soulbound · Key Claimed
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Key Not Claimed
-                        </span>
-                      )}
-                      {!isClaimed && refundWindowHoursLeft !== null && (
-                        <span className={`text-xs px-3 py-1.5 rounded-full border ${
-                          refundWindowHoursLeft < 24
-                            ? "bg-red-900/20 border-red-800 text-red-400"
-                            : "bg-amber-900/20 border-amber-800 text-amber-400"
-                        }`}>
-                          ⏱ {refundWindowHoursLeft}h refund window left
-                        </span>
-                      )}
-                    </div>
+                    {selectedLibraryTokenId > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isClaimed ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400" /> Soulbound · Key Claimed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Key Not Claimed
+                          </span>
+                        )}
+                        {!isClaimed && refundWindowHoursLeft !== null && (
+                          <span className={`text-xs px-3 py-1.5 rounded-full border ${
+                            refundWindowHoursLeft < 24
+                              ? "bg-red-900/20 border-red-800 text-red-400"
+                              : "bg-amber-900/20 border-amber-800 text-amber-400"
+                          }`}>
+                            ⏱ {refundWindowHoursLeft}h refund window left
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-col gap-3 min-w-0 md:min-w-[280px]">
+                  {/* ── RIGHT: action buttons ────────────────────── */}
+                  {selectedLibraryTokenId > 0 && (
+                    <div className="flex flex-col gap-3">
 
                       {/* Claim */}
                       {!isClaimed && (
@@ -965,7 +981,6 @@ const Home: NextPage = () => {
                               : "👁️ Reveal CD Key"
                             }
                           </button>
-
                           {revealedKey && (
                             <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
                               <div className="flex justify-between items-center mb-2">
@@ -1005,22 +1020,15 @@ const Home: NextPage = () => {
                                 placeholder="Reason for refund (optional)"
                                 value={refundReason}
                                 onChange={e => setRefundReason(e.target.value)}
-                                rows={2}
-                                maxLength={280}
+                                rows={2} maxLength={280}
                               />
                               <div className="flex gap-2">
-                                <button
-                                  onClick={handleRefund}
-                                  disabled={loading}
-                                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white transition-all"
-                                >
+                                <button onClick={handleRefund} disabled={loading}
+                                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white transition-all">
                                   {loading && mintingStep ? mintingStep : "Confirm Refund"}
                                 </button>
-                                <button
-                                  onClick={() => setShowRefundInput(false)}
-                                  disabled={loading}
-                                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-all"
-                                >
+                                <button onClick={() => setShowRefundInput(false)} disabled={loading}
+                                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-all">
                                   Cancel
                                 </button>
                               </div>
@@ -1028,16 +1036,21 @@ const Home: NextPage = () => {
                           )}
                         </>
                       )}
+
                     </div>
-                  </div>
-                )}
+                  )}
+
+                </div>
               </div>
             )}
           </div>
         )}
+
+
       </div>
     </div>
   );
 };
+
 
 export default Home;

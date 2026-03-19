@@ -55,6 +55,10 @@ export default function AdminPage() {
   const [contractStatus, setContractStatus] = useState<ContractStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
 
+  // ── Deregister game state ───────────────────────────────────────────────────
+  const [deregContractAddress, setDeregContractAddress] = useState("");
+  const [deregLoading, setDeregLoading] = useState(false);
+
   // ── Vault owner check ───────────────────────────────────────────────────────
   const { data: contractOwner, isLoading: ownerLoading } = useReadContract({
     address: VAULT_ADDRESS,
@@ -185,6 +189,50 @@ export default function AdminPage() {
       setRegStatus("");
     } finally {
       setRegLoading(false);
+    }
+  }
+
+  async function deregisterGame() {
+  if (!connectedAddress || !deregContractAddress) {
+    notification.error("Contract address required");
+    return;
+  }
+  if (!publicClient) return;
+  setDeregLoading(true);
+  try {
+    // 1. Call vault.deregisterGame on-chain
+    const vaultAddress = await publicClient.readContract({
+      address: deregContractAddress as `0x${string}`,
+      abi: SOULKEY_ABI,
+      functionName: "vault",
+    });
+    const txHash = await writeVaultContract({
+      address: vaultAddress as `0x${string}`,
+      abi: VAULT_ABI,
+      functionName: "deregisterGame",
+      args: [deregContractAddress as `0x${string}`],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+
+    // 2. Sync DB
+    const timestamp = Date.now();
+    const message = `Deregister game ${deregContractAddress} ${timestamp}`;
+    const signature = await signMessageAsync({ message });
+    const res = await fetch("/api/admin/deregister-game", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress: connectedAddress, contractAddress: deregContractAddress, signature, message, timestamp }),
+    });
+    const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      notification.success(`${data.name} deregistered successfully`);
+      setDeregContractAddress("");
+    } catch (err: any) {
+      if (err?.code === 4001 || err?.message?.includes("rejected"))
+        notification.error("Signature rejected");
+      else notification.error(err.message ?? "Deregistration failed");
+    } finally {
+      setDeregLoading(false);
     }
   }
 
@@ -393,6 +441,29 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
+
+            <div className="card bg-base-200 shadow p-6 mb-6 border border-error">
+              <h2 className="text-xl font-bold mb-1 text-error">Deregister Game</h2>
+              <p className="text-sm text-base-content/70 mb-4">
+                Removes the game from the vault (no new mints possible) and hides it from the storefront.
+                Existing token holders keep access in their library.
+              </p>
+              <input
+                className="input input-bordered input-error w-full mb-3 font-mono"
+                placeholder="SoulKey contract address 0x..."
+                value={deregContractAddress}
+                onChange={e => setDeregContractAddress(e.target.value)}
+                disabled={deregLoading}
+              />
+              <button
+                className="btn btn-error w-full"
+                onClick={deregisterGame}
+                disabled={deregLoading || !deregContractAddress}
+              >
+                {deregLoading ? <span className="loading loading-spinner" /> : null}
+                Deregister Game
+              </button>
+            </div>
 
             {/* Base URI status */}
             <div className={`alert ${contractStatus.baseURICorrect ? "alert-success" : "alert-warning"}`}>

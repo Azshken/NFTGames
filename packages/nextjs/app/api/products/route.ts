@@ -10,14 +10,9 @@ import { sql } from "@vercel/postgres";
 export async function GET() {
   try {
     const result = await sql`
-      SELECT
-        product_id,
-        contract_address,
-        name,
-        genre,
-        description,
-        image_cid
+      SELECT product_id, contract_address, name, genre, description, image_cid
       FROM products
+      WHERE is_active = true
       ORDER BY product_id ASC
     `;
     return NextResponse.json(
