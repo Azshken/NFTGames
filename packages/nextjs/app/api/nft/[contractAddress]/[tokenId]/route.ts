@@ -46,23 +46,38 @@ export async function GET(
     }
     // No frozen CID — token is unclaimed, serve dynamic JSON
     
-    // Dynamic on-chain status — Unclaimed vs Soulbound
-    let status = "Unclaimed";
-    try {
-      const publicClient = createPublicClient({
-        chain: scaffoldConfig.targetNetworks[0],
-        transport: http(process.env.ALCHEMY_RPC_URL),
-      });
-      const claimTs = await publicClient.readContract({
-        address: contractAddress,
-        abi: parseAbi(["function getClaimTimestamp(uint256) view returns (uint256)"]),
-        functionName: "getClaimTimestamp",
-        args: [tokenId],
-      });
-      if (claimTs > 0n) status = "Soulbound";
-    } catch {
-      // token not yet minted or RPC hiccup — default to Unclaimed
-    }
+    // // Dynamic on-chain status — Unclaimed vs Soulbound
+    // let status = "Unclaimed";
+    // try {
+    //   const publicClient = createPublicClient({
+    //     chain: scaffoldConfig.targetNetworks[0],
+    //     transport: http(process.env.ALCHEMY_RPC_URL),
+    //   });
+    //   const claimTs = await publicClient.readContract({
+    //     address: contractAddress,
+    //     abi: parseAbi(["function getClaimTimestamp(uint256) view returns (uint256)"]),
+    //     functionName: "getClaimTimestamp",
+    //     args: [tokenId],
+    //   });
+    //   if (claimTs > 0n) status = "Soulbound";
+    // } catch {
+    //   // token not yet minted or RPC hiccup — default to Unclaimed
+    // }
+
+    // DB status check — replaces the RPC call
+    // Faster, doesn't fail on RPC hiccups, more reliant on the DB
+    const claimResult = await sql`
+      SELECT r.redeemed_at
+      FROM mints m
+      JOIN cd_keys ck ON ck.id = m.cdkey_id
+      JOIN batches b ON b.batch_id = ck.batch_id
+      JOIN products p ON p.product_id = b.product_id
+      LEFT JOIN redemptions r ON r.cdkey_id = ck.id
+      WHERE m.token_id = ${tokenId.toString()}
+      AND LOWER(p.contract_address) = LOWER(${contractAddress})
+      LIMIT 1
+    `;
+    const isClaimed = !!claimResult.rows[0]?.redeemed_at;
 
     const metadata = {
       name: `${name} CD Key #${tokenId}`,

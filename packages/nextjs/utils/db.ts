@@ -91,7 +91,11 @@ export async function reserveCDKeyForWallet(contractAddress: string, walletAddre
       JOIN products p ON p.product_id = b.product_id
       WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
         AND LOWER(ck.reserved_by) = LOWER(${walletAddress})
-        AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM mints m
+          WHERE m.cdkey_id = ck.id
+          AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id)
+        )
       LIMIT 1
     `;
 
@@ -108,6 +112,7 @@ export async function reserveCDKeyForWallet(contractAddress: string, walletAddre
       JOIN products p ON p.product_id = b.product_id
       WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
         AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+        AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id))
         AND ck.reserved_by IS NULL
       ORDER BY ck.created_at ASC
       LIMIT 1
@@ -142,7 +147,11 @@ export async function getAvailableKeyCount(contractAddress: string): Promise<num
     JOIN batches b ON b.batch_id = ck.batch_id
     JOIN products p ON p.product_id = b.product_id
     WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
-      AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM mints m
+        WHERE m.cdkey_id = ck.id
+        AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id)
+      )
   `;
   return Number(result.rows[0].cnt);
 }
@@ -166,7 +175,11 @@ export async function reserveAndMint(params: MintParams): Promise<CDKeyRow> {
       SELECT ck.id, ck.encrypted_key, ck.commitment_hash, ck.batch_id, ck.created_at
       FROM cd_keys ck
       WHERE ck.commitment_hash = ${normalizedHash}
-        AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM mints m
+          WHERE m.cdkey_id = ck.id
+          AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id)
+        )
       FOR UPDATE OF ck SKIP LOCKED
     `;
 
