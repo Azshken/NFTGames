@@ -112,7 +112,7 @@ export async function reserveCDKeyForWallet(contractAddress: string, walletAddre
       JOIN products p ON p.product_id = b.product_id
       WHERE LOWER(p.contract_address) = LOWER(${contractAddress})
         AND NOT EXISTS (SELECT 1 FROM mints m WHERE m.cdkey_id = ck.id)
-        AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id))
+        AND NOT EXISTS (SELECT 1 FROM refunds r WHERE r.cdkey_id = ck.id)
         AND ck.reserved_by IS NULL
       ORDER BY ck.created_at ASC
       LIMIT 1
