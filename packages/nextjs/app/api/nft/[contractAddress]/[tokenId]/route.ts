@@ -1,9 +1,7 @@
 // app/api/nft/[contractAddress]/[tokenId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
-import { createPublicClient, getAddress, http, parseAbi } from "viem";
-
-import scaffoldConfig from "~~/scaffold.config";
+import { getAddress } from "viem";
 
 export async function GET(
   _req: NextRequest,
