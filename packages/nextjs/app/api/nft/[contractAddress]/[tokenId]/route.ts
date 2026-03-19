@@ -44,24 +44,6 @@ export async function GET(
     }
     // No frozen CID — token is unclaimed, serve dynamic JSON
     
-    // // Dynamic on-chain status — Unclaimed vs Soulbound
-    // let status = "Unclaimed";
-    // try {
-    //   const publicClient = createPublicClient({
-    //     chain: scaffoldConfig.targetNetworks[0],
-    //     transport: http(process.env.ALCHEMY_RPC_URL),
-    //   });
-    //   const claimTs = await publicClient.readContract({
-    //     address: contractAddress,
-    //     abi: parseAbi(["function getClaimTimestamp(uint256) view returns (uint256)"]),
-    //     functionName: "getClaimTimestamp",
-    //     args: [tokenId],
-    //   });
-    //   if (claimTs > 0n) status = "Soulbound";
-    // } catch {
-    //   // token not yet minted or RPC hiccup — default to Unclaimed
-    // }
-
     // DB status check — replaces the RPC call
     // Faster, doesn't fail on RPC hiccups, more reliant on the DB
     const claimResult = await sql`
@@ -85,7 +67,8 @@ export async function GET(
       attributes: [
         { trait_type: "Game", value: name },
         { trait_type: "Genre", value: genre },
-        { trait_type: "Status", value: status },
+        { trait_type: "Status", value: isClaimed ? "Claimed" : "Unclaimed" },
+        { trait_type: "Soulbound", value: isClaimed ? "Yes" : "No"},
       ],
     };
 
