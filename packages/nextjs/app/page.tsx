@@ -683,10 +683,10 @@ const Home: NextPage = () => {
   const isSoldOut = totalSupply !== undefined && maxSupply !== undefined && totalSupply >= maxSupply;
 
   return (
-    <div className="min-h-screen bg-[#0d0f14] text-zinc-100 pt-15">
+    <div className="min-h-screen bg-[#0d0f14] text-zinc-100 pt-14">
 
       {/* ── HERO ─────────────────────────────────────────── */}
-      <div className="relative h-72 md:h-64 overflow-hidden">
+      <div className="relative h-72 md:h-52 overflow-hidden">
         {selectedProduct?.image_cid && (
           <Image src={selectedProduct.image_cid} alt="" fill className="object-cover scale-110 blur-2xl opacity-25" unoptimized />
         )}
@@ -702,11 +702,11 @@ const Home: NextPage = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-6 -mt-2 pb-16">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 pb-16">
 
         {/* ── GAME SELECTOR TABS ───────────────────────────── */}
         {products.length > 1 && (
-          <div className="flex gap-2 mb-8 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
             {products.map(product => (
               <button
                 key={product.product_id}
