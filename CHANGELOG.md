@@ -26,3 +26,9 @@
 - Added is_active to products table.
 - Added deregister game to /admin page.
 - Added a game selector to 'Your Library' section of the app/ page
+
+23/03/26
+
+- Deployed a new SoulKey contract.
+- Uploaded a new Pinata game image and metadata.
+- Removed all the scaffolding. Now I'm only using viem, rainbowkit and sonner/toast for error messages.
