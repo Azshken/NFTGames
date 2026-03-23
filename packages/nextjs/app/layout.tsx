@@ -1,8 +1,5 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import "~~/styles/globals.css";
-import { headers } from "next/headers";
-import { cookieToInitialState } from "wagmi";
-import { wagmiConfig } from "~~/lib/wagmi";
 import { Providers } from "~~/components/Providers";
 import { Header } from "~~/components/Header";
 import { Footer } from "~~/components/Footer";
@@ -13,12 +10,11 @@ export const metadata = {
   description: "Mint verifiable game keys as virtual game cards",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const initialState = cookieToInitialState(wagmiConfig, (await headers()).get("cookie"));
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <Providers initialState={initialState}>
+        <Providers>
           <Header />
           <Toaster position="bottom-right" theme="dark" richColors />
           {children}
