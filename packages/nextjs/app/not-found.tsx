@@ -1,3 +1,6 @@
+// app/not-found.tsx
+export const dynamic = "force-dynamic";  // ← prevents static prerender
+
 import Link from "next/link";
 
 export default function NotFound() {
