@@ -9,7 +9,7 @@ export const Header = () => {
   return (
     <div className="sticky top-0 z-20 w-full bg-[#0d0f14]/80 backdrop-blur-md border-b border-zinc-800/60">
       <div className="max-w-6xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
-        {/* Far left — brand  */}
+        {/* Far left — brand */}
         <Link href="/" className="flex items-center gap-2">
           <span className="text-emerald-400 font-black tracking-tight text-lg">SoulKey</span>
           <span className="text-zinc-600 text-sm font-medium hidden sm:block">Store</span>
