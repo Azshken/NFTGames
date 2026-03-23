@@ -1,10 +1,9 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import "~~/styles/globals.css";
 import { Toaster } from "sonner";
-import { Providers } from "~~/components/Providers";
 import { Header } from "~~/components/Header";
 import { Footer } from "~~/components/Footer";
-
+import { ProvidersWrapper } from '~~/components/ProvidersWrapper';
 
 export const metadata = {
   title: "Soulkey Store",
@@ -15,12 +14,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <Providers>
+        <ProvidersWrapper>
           <Header />
           <Toaster position="bottom-right" theme="dark" richColors />
           {children}
           <Footer />
-        </Providers>
+        </ProvidersWrapper>
       </body>
     </html>
   );
