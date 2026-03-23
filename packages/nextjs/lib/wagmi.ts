@@ -1,6 +1,6 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { cookieStorage, createStorage } from "wagmi";
 import { sepolia } from "viem/chains";
+import { cookieStorage, createStorage } from "wagmi";
 
 export const wagmiConfig = getDefaultConfig({
   appName: "SoulKey Store",
