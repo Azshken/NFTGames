@@ -4,7 +4,6 @@ export const Footer = () => {
   return (
     <footer className="w-full border-t border-zinc-800/60 bg-[#0d0f14]">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-
         {/* Left — brand + copyright */}
         <span className="text-zinc-600 text-sm">
           © {new Date().getFullYear()} <span className="text-zinc-400 font-medium">SoulKey Store</span>
@@ -21,24 +20,15 @@ export const Footer = () => {
             Vault Contract
           </a>
           <span className="text-zinc-800">·</span>
-          <a
-            href="mailto:support@yourdomain.com"
-            className="hover:text-zinc-300 transition-colors"
-          >
+          <a href="mailto:support@yourdomain.com" className="hover:text-zinc-300 transition-colors">
             Support
           </a>
           <span className="text-zinc-800">·</span>
-          <Link
-            href="/terms"
-            className="hover:text-zinc-300 transition-colors"
-          >
+          <Link href="/terms" className="hover:text-zinc-300 transition-colors">
             Terms
           </Link>
           <span className="text-zinc-800">·</span>
-          <Link
-            href="/privacy"
-            className="hover:text-zinc-300 transition-colors"
-          >
+          <Link href="/privacy" className="hover:text-zinc-300 transition-colors">
             Privacy
           </Link>
         </nav>
@@ -55,7 +45,6 @@ export const Footer = () => {
             Ethereum
           </a>
         </div>
-
       </div>
     </footer>
   );

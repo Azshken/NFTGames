@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useBalance } from "wagmi";
 import { formatEther } from "viem";
+import { useBalance } from "wagmi";
 
 export const Header = () => {
   return (
     <div className="sticky top-0 z-20 w-full bg-[#0d0f14]/80 backdrop-blur-md border-b border-zinc-800/60">
       <div className="max-w-6xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
-
         {/* Far left — brand */}
         <Link href="/" className="flex items-center gap-2">
           <span className="text-emerald-400 font-black tracking-tight text-lg">SoulKey</span>
@@ -24,7 +23,6 @@ export const Header = () => {
           </div>
           <WalletButton />
         </div>
-
       </div>
     </div>
   );
@@ -53,10 +51,7 @@ const WalletButton = () => {
                 Wrong Network
               </button>
             ) : (
-              <WalletDisplay
-                address={account.address}
-                openAccountModal={openAccountModal}
-              />
+              <WalletDisplay address={account.address} openAccountModal={openAccountModal} />
             )}
           </div>
         );
@@ -65,13 +60,7 @@ const WalletButton = () => {
   );
 };
 
-const WalletDisplay = ({
-  address,
-  openAccountModal,
-}: {
-  address: string;
-  openAccountModal: () => void;
-}) => {
+const WalletDisplay = ({ address, openAccountModal }: { address: string; openAccountModal: () => void }) => {
   const { data: balance } = useBalance({ address: address as `0x${string}` });
 
   const short = `${address.slice(0, 4)}...${address.slice(-4)}`;
