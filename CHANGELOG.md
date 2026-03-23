@@ -17,3 +17,12 @@
 - app/page.tsx new render and handlers - ui overhaul
 - Added EIP-4906 support to SoulKey.sol
 - Changed the image_cid to image_claimed_cid when building the frozen_metadata (confirm/route.ts)
+
+19/03/26
+
+- utils/db.ts changed so it checks refunds table for available keys.
+- Added index: CREATE INDEX idx_cdkeys_batch_created ON cd_keys(batch_id, created_at ASC);
+- [tokenID]/route.ts changed the RPC call to DB call.
+- Added is_active to products table.
+- Added deregister game to /admin page.
+- Added a game selector to 'Your Library' section of the app/ page

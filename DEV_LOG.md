@@ -167,6 +167,27 @@ Refactoring the code:
 - Updated the SoulKey.sol to support EIP-4906 (needs redeploy).
 - Redesigned the web site.
 
+17/03/26
+
+- Sharing the project.
+- Testing and thinking about the design what to fix.
+
+18/03/26
+
+- Chill prepping for fixes.
+- Testing, logging bugs.
+
+19/03/26
+
+- Fixed bug: refunded keys were never minted again.
+  - utils/db.ts checks refunds table now as well.
+  - Changed partial indexing to simpler full index.
+- Changed the status check to DB, not an RPC call -> faster by 200-500 ms, less RPC calls.
+- Deregistered games doesn't show in products selection, but show up in the user's library
+  - Redesigned the user's Game Library, there is a game selection now.
+  - Now is_active attribute in products table, tracking game registration
+  - Deregister Game option added in /admin page
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.
