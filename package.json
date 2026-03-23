@@ -1,60 +1,17 @@
 {
-  "name": "se-2",
+  "name": "nft-games",
   "version": "0.0.1",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "account": "yarn foundry:account",
-    "account:generate": "yarn foundry:generate",
-    "account:import": "yarn foundry:account-import",
-    "account:reveal-pk": "yarn workspace @se-2/foundry account:reveal-pk",
-    "chain": "yarn foundry:chain",
-    "compile": "yarn foundry:compile",
-    "deploy": "yarn foundry:deploy",
-    "flatten": "yarn foundry:flatten",
-    "fork": "yarn foundry:fork",
-    "format": "yarn next:format && yarn foundry:format",
-    "foundry:account": "yarn workspace @se-2/foundry account",
-    "foundry:account-import": "yarn workspace @se-2/foundry account:import",
-    "foundry:chain": "yarn workspace @se-2/foundry chain",
-    "foundry:clean": "yarn workspace @se-2/foundry clean",
-    "foundry:compile": "yarn workspace @se-2/foundry compile",
-    "foundry:deploy": "yarn workspace @se-2/foundry deploy",
-    "foundry:deploy-verify": "yarn workspace @se-2/foundry deploy:verify",
-    "foundry:flatten": "yarn workspace @se-2/foundry flatten",
-    "foundry:fork": "yarn workspace @se-2/foundry fork",
-    "foundry:format": "yarn workspace @se-2/foundry format",
-    "foundry:generate": "yarn workspace @se-2/foundry account:generate",
-    "foundry:lint": "yarn workspace @se-2/foundry lint",
-    "foundry:test": "yarn workspace @se-2/foundry test",
-    "foundry:verify": "yarn workspace @se-2/foundry verify",
-    "generate": "yarn foundry:generate",
-    "ipfs": "yarn workspace @se-2/nextjs ipfs",
-    "lint": "yarn next:lint && yarn foundry:lint",
-    "next:build": "yarn workspace @se-2/nextjs build",
-    "next:check-types": "yarn workspace @se-2/nextjs check-types --skipLibCheck",
-    "next:format": "yarn workspace @se-2/nextjs format",
-    "next:lint": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 yarn workspace @se-2/nextjs lint",
-    "next:serve": "yarn workspace @se-2/nextjs serve",
-    "precommit": "lint-staged",
-    "start": "yarn workspace @se-2/nextjs dev",
-    "test": "yarn foundry:test",
-    "vercel": "yarn workspace @se-2/nextjs vercel",
-    "vercel:login": "yarn workspace @se-2/nextjs vercel:login",
-    "vercel:yolo": "yarn workspace @se-2/nextjs vercel:yolo",
-    "verify": "yarn foundry:verify"
-  },
-  "devDependencies": {
-    "lint-staged": "~13.2.2"
+    "dev": "cd packages/nextjs && npm run dev",
+    "build": "cd packages/nextjs && npm run build",
+    "chain": "cd packages/foundry && forge script ...",
+    "deploy": "cd packages/foundry && forge script ..."
   },
   "engines": {
     "node": ">=20.18.3"
-  },
-  "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
-    "@vercel/postgres": "^0.10.0",
-    "zod": "^4.3.6"
   }
 }
