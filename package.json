@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "preinstall": "npx only-allow npm",
     "dev": "cd packages/nextjs && npm run dev",
     "build": "cd packages/nextjs && npm run build",
     "chain": "cd packages/foundry && forge script ...",
