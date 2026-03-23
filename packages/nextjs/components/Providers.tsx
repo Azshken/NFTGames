@@ -12,6 +12,7 @@ const config = getDefaultConfig({
   ssr: true,
   storage: createStorage({
     storage: cookieStorage,
+    key: "wagmi",
   }),
 });
 
@@ -19,9 +20,11 @@ const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({ accentColor: "#10b981" })}>{children}</RainbowKitProvider>
+        <RainbowKitProvider theme={darkTheme({ accentColor: "#10b981" })}>
+          {children}
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
