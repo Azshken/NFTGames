@@ -24,7 +24,7 @@ import {MasterKeyVault} from "../contracts/MasterKeyVault.sol";
  */
 contract DeployGameContract is Script {
     function run() external {
-        address vaultAddress = vm.envAddress("NEXT_PUBLIC_VAULT_ADDRESS");
+        address vaultAddress = vm.envAddress("VAULT_ADDRESS");
         string memory name = vm.envString("GAME_NAME");
         string memory symbol = vm.envString("GAME_SYMBOL");
         uint64 supply = uint64(vm.envUint("GAME_SUPPLY"));
