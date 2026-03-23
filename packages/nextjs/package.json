@@ -62,7 +62,6 @@
     "typescript": "~5.8.2",
     "vercel": "latest"
   },
-  "packageManager": "yarn@3.2.3",
   "optionalDependencies": {
     "@next/swc-linux-x64-gnu": "^16.1.6"
   }
