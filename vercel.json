@@ -1,5 +1,6 @@
 {
-  "buildCommand": "cd packages/nextjs && yarn build",
+  "installCommand": "npm install",
+  "buildCommand": "cd packages/nextjs && npm run build",
   "outputDirectory": "packages/nextjs/.next",
   "crons": [
     {
