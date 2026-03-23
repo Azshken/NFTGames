@@ -1,9 +1,14 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import "~~/styles/globals.css";
 import { Toaster } from "sonner";
-import { Header } from "~~/components/Header";
 import { Footer } from "~~/components/Footer";
 import { ProvidersWrapper } from '~~/components/ProvidersWrapper';
+import dynamic from "next/dynamic";
+
+const Header = dynamic(
+  () => import("~~/components/Header").then(m => m.Header),
+  { ssr: false }
+);
 
 export const metadata = {
   title: "Soulkey Store",
