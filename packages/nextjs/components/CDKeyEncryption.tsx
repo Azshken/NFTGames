@@ -3,8 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-import { notification } from "~~/utils/scaffold-eth";
+import { toast } from "sonner";
 
 export function CDKeyEncryption() {
   const [encryptionKey, setEncryptionKey] = useState<string>("");
@@ -20,7 +19,7 @@ export function CDKeyEncryption() {
 
   async function getEncryptionPublicKey() {
     if (!window.ethereum) {
-      notification.error("MetaMask not detected");
+      toast.error("MetaMask not detected");
       return;
     }
 
@@ -36,17 +35,17 @@ export function CDKeyEncryption() {
       });
 
       setEncryptionKey(encryptionPublicKey);
-      notification.success("Encryption key retrieved!");
+      toast.success("Encryption key retrieved!");
       return encryptionPublicKey;
     } catch (error) {
       console.error(error);
-      notification.error("Failed to get encryption key");
+      toast.error("Failed to get encryption key");
     }
   }
 
   async function decryptWithMetaMask(encryptedDataHex: string) {
     if (!window.ethereum) {
-      notification.error("MetaMask not detected");
+      toast.error("MetaMask not detected");
       return;
     }
 
@@ -61,11 +60,11 @@ export function CDKeyEncryption() {
         params: [encryptedDataHex, accounts[0]],
       });
 
-      notification.success("CD Key decrypted!");
+      toast.success("CD Key decrypted!");
       return decryptedMessage;
     } catch (error) {
       console.error(error);
-      notification.error("Failed to decrypt");
+      toast.error("Failed to decrypt");
     }
   }
 
@@ -88,10 +87,10 @@ export function CDKeyEncryption() {
       // Step 3: Decrypt with MetaMask
       const cdKey = await decryptWithMetaMask(encryptedCDKey);
 
-      notification.success(`Your CD Key: ${cdKey}`);
+      toast.success(`Your CD Key: ${cdKey}`);
     } catch (error) {
       console.error(error);
-      notification.error("Minting failed");
+      toast.error("Minting failed");
     }
   }
 

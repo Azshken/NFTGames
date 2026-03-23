@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 
-import scaffoldConfig from "~~/scaffold.config";
+import { sepolia } from "viem/chains";
 import { decrypt, encryptWithPublicKey } from "~~/utils/crypto";
 import { createRedemptionRecord, getCDKeyByTokenId } from "~~/utils/db";
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Verify NFT ownership on-chain
     const publicClient = createPublicClient({
-      chain: scaffoldConfig.targetNetworks[0],
+      chain: sepolia,
       transport: http(rpcUrl),
     });
 

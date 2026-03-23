@@ -9,7 +9,7 @@ import { decodeEventLog, formatEther } from "viem";
 import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
 
 import { SOULKEY_ABI, VAULT_ABI } from "~~/utils/abis";
-import { notification } from "~~/utils/scaffold-eth";
+import { toast } from "sonner";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -168,7 +168,7 @@ const Home: NextPage = () => {
         });
       }
     } catch {
-      notification.error("Failed to load your library.");
+      toast.error("Failed to load your library.");
     } finally {
       setLibraryLoading(false);
     }
@@ -260,19 +260,19 @@ const Home: NextPage = () => {
 
   const handleMint = async () => {
     if (!connectedAddress || !contractAddress) {
-      notification.error("Please connect your wallet");
+      toast.error("Please connect your wallet");
       return;
     }
     // mintPriceETH === undefined means data hasn't loaded yet — NOT the same as 0n.
     // Checking === undefined correctly handles free-mint contracts (mintPriceETH === 0n).
     if (mintPriceETH === undefined || mintPriceUSD === undefined) {
-      notification.error("Contract data is still loading — please wait a moment");
+      toast.error("Contract data is still loading — please wait a moment");
       return;
     }
     // Explicit guard — no ! assertion. publicClient is undefined during SSR or if wagmi
     // is misconfigured; a runtime crash here would lose the user's committed key reservation.
     if (!publicClient) {
-      notification.error("No RPC client available — please refresh the page");
+      toast.error("No RPC client available — please refresh the page");
       return;
     }
 
@@ -379,7 +379,7 @@ const Home: NextPage = () => {
         // Instead, inject the token optimistically — its existence was confirmed
         // from the on-chain receipt above, not assumed. This is an intentional
         // exception to the no-optimistic-update policy.
-        notification.warning(
+        toast.warning(
           `NFT minted on-chain (tx: ${txHash.slice(0, 10)}…) but the server record failed ` +
             `— please contact support with your transaction hash.`,
         );
@@ -392,10 +392,10 @@ const Home: NextPage = () => {
       // fetchOwnedTokens fires before link-token completes and wipes the new token.
       await fetchLibrary();
       setSelectedLibraryTokenId(Number(mintedTokenId));
-      notification.success(`NFT minted! Token #${mintedTokenId} — now claim your CD key.`);
+      toast.success(`NFT minted! Token #${mintedTokenId} — now claim your CD key.`);
     } catch (error: any) {
       console.error("Mint error", error);
-      notification.error(`Failed to mint: ${error.message}`);
+      toast.error(`Failed to mint: ${error.message}`);
     } finally {
       setLoading(false);
       setMintingStep("");
@@ -406,15 +406,15 @@ const Home: NextPage = () => {
 
   const handleClaimCDKey = async () => {
     if (!connectedAddress || !selectedLibraryTokenId || !libraryContractAddress) {
-      notification.error("Please select a token");
+      toast.error("Please select a token");
       return;
     }
     if (isClaimed) {
-      notification.error("This token's CD key has already been claimed");
+      toast.error("This token's CD key has already been claimed");
       return;
     }
     if (!publicClient) {
-      notification.error("No RPC client available — please refresh the page");
+      toast.error("No RPC client available — please refresh the page");
       return;
     }
 
@@ -469,10 +469,10 @@ const Home: NextPage = () => {
       });
 
       await refetchClaimTimestamp();
-      notification.success("CD key claimed! NFT is now soulbound. Click 'Reveal CD Key' to decrypt.");
+      toast.success("CD key claimed! NFT is now soulbound. Click 'Reveal CD Key' to decrypt.");
     } catch (error: any) {
       console.error("Claim error", error);
-      notification.error(`Failed to claim: ${error.message}`);
+      toast.error(`Failed to claim: ${error.message}`);
     } finally {
       setLoading(false);
       setMintingStep("");
@@ -483,15 +483,15 @@ const Home: NextPage = () => {
 
   const handleRevealCDKey = async () => {
     if (!connectedAddress || !selectedLibraryTokenId || !libraryContractAddress) {
-      notification.error("Please connect your wallet and select a token");
+      toast.error("Please connect your wallet and select a token");
       return;
     }
     if (!isClaimed) {
-      notification.error("CD key hasn't been claimed yet");
+      toast.error("CD key hasn't been claimed yet");
       return;
     }
     if (!publicClient) {
-      notification.error("No RPC client available — please refresh the page");
+      toast.error("No RPC client available — please refresh the page");
       return;
     }
 
@@ -516,10 +516,10 @@ const Home: NextPage = () => {
         params: [encryptedBytes, connectedAddress],
       });
       setRevealedKey(decrypted);
-      notification.success("CD key revealed successfully!");
+      toast.success("CD key revealed successfully!");
     } catch (error: any) {
       console.error("Reveal error", error);
-      notification.error(`Failed to reveal: ${error.message}`);
+      toast.error(`Failed to reveal: ${error.message}`);
     } finally {
       setLoading(false);
       setMintingStep("");
@@ -530,15 +530,15 @@ const Home: NextPage = () => {
 
   const handleRefund = async () => {
     if (!connectedAddress || !selectedLibraryTokenId || !libraryContractAddress || !VAULT_ADDRESS) {
-      notification.error("Wallet or contract not ready");
+      toast.error("Wallet or contract not ready");
       return;
     }
     if (!isRefundable) {
-      notification.error("This token is not refundable");
+      toast.error("This token is not refundable");
       return;
     }
     if (!publicClient) {
-      notification.error("No RPC client available — please refresh the page");
+      toast.error("No RPC client available — please refresh the page");
       return;
     }
 
@@ -594,10 +594,10 @@ const Home: NextPage = () => {
       await fetchLibrary();
       setShowRefundInput(false);
       setRefundReason(""); // clear so the next token starts with an empty textarea
-      notification.success("Refund processed! NFT has been burned.");
+      toast.success("Refund processed! NFT has been burned.");
     } catch (error: any) {
       console.error("Refund error", error);
-      notification.error(`Refund failed: ${error.message}`);
+      toast.error(`Refund failed: ${error.message}`);
     } finally {
       setLoading(false);
       setMintingStep("");
@@ -668,16 +668,15 @@ const Home: NextPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#0d0f14] text-zinc-100 pt-14">
+    <div className="min-h-screen bg-[#0d0f14] text-zinc-100">
 
       {/* ── HERO ─────────────────────────────────────────── */}
-      <div className="relative h-72 md:h-52 overflow-hidden">
+      <div className="relative h-72 md:h-48 overflow-hidden">
         {selectedProduct?.image_cid && (
           <Image src={selectedProduct.image_cid} alt="" fill className="object-cover scale-110 blur-2xl opacity-25" unoptimized />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-[#0d0f14]/20 via-[#0d0f14]/50 to-[#0d0f14]" />
         <div className="relative z-10 flex flex-col justify-end h-full px-6 pb-10 max-w-6xl mx-auto">
-          <p className="text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase mb-2">SoulKey Store</p>
           <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white drop-shadow-xl">
             {selectedProduct?.name ?? "Virtual Game Keys"}
           </h1>
@@ -986,7 +985,7 @@ const Home: NextPage = () => {
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-[10px] text-zinc-600 uppercase tracking-widest">Your CD Key</span>
                                 <button
-                                  onClick={() => { navigator.clipboard.writeText(revealedKey); notification.success("Copied!"); }}
+                                  onClick={() => { navigator.clipboard.writeText(revealedKey); toast.success("Copied!"); }}
                                   className="text-xs text-zinc-500 hover:text-zinc-200 transition-colors font-medium"
                                 >
                                   Copy ↗

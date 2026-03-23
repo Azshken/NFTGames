@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi, verifyMessage } from "viem";
 
-import scaffoldConfig from "~~/scaffold.config";
+import { sepolia } from "viem/chains";
 import { encrypt, generateCDKey, hashCDKey } from "~~/utils/crypto";
 import { createBatch, getAvailableKeyCount, getOrCreateProduct, insertCDKeys } from "~~/utils/db";
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Verify on-chain ownership — SoulKey.owner() must match walletAddress
-    const targetChain = scaffoldConfig.targetNetworks[0];
+    const targetChain = sepolia;
     const publicClient = createPublicClient({
       chain: targetChain,
       transport: http(process.env.ALCHEMY_RPC_URL),

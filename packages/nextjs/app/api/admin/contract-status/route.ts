@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { createPublicClient, getAddress, http, parseAbi } from "viem";
 
-import scaffoldConfig from "~~/scaffold.config";
+import { sepolia } from "viem/chains";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     // 2. Check on-chain baseURI
     const publicClient = createPublicClient({
-      chain: scaffoldConfig.targetNetworks[0],
+      chain: sepolia,
       transport: http(process.env.ALCHEMY_RPC_URL),
     });
 

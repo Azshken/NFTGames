@@ -8,7 +8,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, usePublicClient, useReadContract, useSignMessage, useWriteContract } from "wagmi";
 
 import { SOULKEY_ABI, VAULT_ABI } from "~~/utils/abis";
-import { notification } from "~~/utils/scaffold-eth";
+import { toast } from "sonner";
 
 const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS as `0x${string}` | undefined;
 
@@ -74,7 +74,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (isConnected && contractOwner && connectedAddress) {
       if (contractOwner.toLowerCase() !== connectedAddress.toLowerCase()) {
-        notification.error("Access denied: not the contract owner");
+        toast.error("Access denied: not the contract owner");
         router.push("/");
       }
     }
@@ -108,15 +108,15 @@ export default function AdminPage() {
 
   async function registerGame() {
     if (!connectedAddress || !regContractAddress || !metadataCid) {
-      notification.error("Contract address and metadata CID are required");
+      toast.error("Contract address and metadata CID are required");
       return;
     }
     if (!/^0x[0-9a-fA-F]{40}$/.test(regContractAddress)) {
-      notification.error("Invalid contract address");
+      toast.error("Invalid contract address");
       return;
     }
     if (!publicClient) {
-      notification.error("No RPC client available — please refresh the page");
+      toast.error("No RPC client available — please refresh the page");
       return;
     }
 
@@ -174,7 +174,7 @@ export default function AdminPage() {
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
 
-      notification.success(`✅ "${data.product.name}" registered!`);
+      toast.success(`✅ "${data.product.name}" registered!`);
       setMetadataCid("");
       setRegStatus("");
 
@@ -182,9 +182,9 @@ export default function AdminPage() {
       refreshContractStatus(regContractAddress);
     } catch (error: any) {
       if (error?.code === 4001 || error?.message?.includes("rejected")) {
-        notification.error("Signature rejected");
+        toast.error("Signature rejected");
       } else {
-        notification.error(error.message || "Registration failed");
+        toast.error(error.message || "Registration failed");
       }
       setRegStatus("");
     } finally {
@@ -194,7 +194,7 @@ export default function AdminPage() {
 
   async function deregisterGame() {
   if (!connectedAddress || !deregContractAddress) {
-    notification.error("Contract address required");
+    toast.error("Contract address required");
     return;
   }
   if (!publicClient) return;
@@ -225,12 +225,12 @@ export default function AdminPage() {
     });
     const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      notification.success(`${data.name} deregistered successfully`);
+      toast.success(`${data.name} deregistered successfully`);
       setDeregContractAddress("");
     } catch (err: any) {
       if (err?.code === 4001 || err?.message?.includes("rejected"))
-        notification.error("Signature rejected");
-      else notification.error(err.message ?? "Deregistration failed");
+        toast.error("Signature rejected");
+      else toast.error(err.message ?? "Deregistration failed");
     } finally {
       setDeregLoading(false);
     }
@@ -248,15 +248,15 @@ export default function AdminPage() {
       });
       setRegStatus("Waiting for Base URI confirmation...");
       await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
-      notification.success("Base URI updated!");
+      toast.success("Base URI updated!");
       setRegStatus("");
       // Refresh so the ✅ Base URI alert appears
       refreshContractStatus(regContractAddress);
     } catch (error: any) {
       if (error?.code === 4001 || error?.message?.includes("rejected")) {
-        notification.error("Transaction rejected");
+        toast.error("Transaction rejected");
       } else {
-        notification.error(error.message || "Failed to set Base URI");
+        toast.error(error.message || "Failed to set Base URI");
       }
       setRegStatus("");
     } finally {
@@ -266,11 +266,11 @@ export default function AdminPage() {
 
   async function generateKeys() {
     if (!connectedAddress) {
-      notification.error("Please connect your wallet");
+      toast.error("Please connect your wallet");
       return;
     }
     if (!genContractAddress || !/^0x[0-9a-fA-F]{40}$/.test(genContractAddress)) {
-      notification.error("Invalid contract address format");
+      toast.error("Invalid contract address format");
       return;
     }
 
@@ -304,16 +304,16 @@ export default function AdminPage() {
         setKeys(data.keys || []);
         setTotalAvailable(data.totalAvailable);
         setBatchId(data.batchId);
-        notification.success(`✅ Generated ${data.count} keys in batch #${data.batchId}!`);
+        toast.success(`✅ Generated ${data.count} keys in batch #${data.batchId}!`);
       } else {
-        notification.error(data.error || "Failed to generate keys");
+        toast.error(data.error || "Failed to generate keys");
       }
     } catch (error: any) {
       if (error?.code === 4001 || error?.message?.includes("rejected")) {
-        notification.error("Signature rejected — no keys generated");
+        toast.error("Signature rejected — no keys generated");
       } else {
         console.error(error);
-        notification.error(error.message || "Failed to generate keys");
+        toast.error(error.message || "Failed to generate keys");
       }
     } finally {
       setLoading(false);
@@ -614,7 +614,7 @@ export default function AdminPage() {
                           className="btn btn-xs btn-ghost"
                           onClick={() => {
                             navigator.clipboard.writeText(key.commitmentHash);
-                            notification.info(`Copied #${i + 1}!`);
+                            toast.info(`Copied #${i + 1}!`);
                           }}
                         >
                           📋

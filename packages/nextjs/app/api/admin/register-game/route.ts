@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
 import { createPublicClient, http, parseAbi, verifyMessage } from "viem";
 
-import scaffoldConfig from "~~/scaffold.config";
+import { sepolia } from "viem/chains";
 
 const MAX_MESSAGE_AGE_MS = 5 * 60 * 1000;
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const publicClient = createPublicClient({
-      chain: scaffoldConfig.targetNetworks[0],
+      chain: sepolia,
       transport: http(process.env.ALCHEMY_RPC_URL),
     });
 

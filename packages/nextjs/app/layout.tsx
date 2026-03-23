@@ -1,28 +1,27 @@
 import "@rainbow-me/rainbowkit/styles.css";
-import "@scaffold-ui/components/styles.css";
-
-import { ScaffoldEthAppWithProviders } from "~~/components/ScaffoldEthAppWithProviders";
-import { ThemeProvider } from "~~/components/ThemeProvider";
-
 import "~~/styles/globals.css";
+import { Toaster } from "sonner";
+import { Providers } from "~~/components/Providers";
+import { Header } from "~~/components/Header";
+import { Footer } from "~~/components/Footer";
 
-import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 
-export const metadata = getMetadata({
-  title: "Scaffold-ETH 2 App",
-  description: "Built with 🏗 Scaffold-ETH 2",
-});
+export const metadata = {
+  title: "Soulkey Store",
+  description: "Mint verifiable game keys as virtual game cards",
+};
 
-const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html suppressHydrationWarning className={``}>
+    <html lang="en">
       <body>
-        <ThemeProvider enableSystem>
-          <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
-        </ThemeProvider>
+        <Providers>
+          <Header />
+          <Toaster position="bottom-right" theme="dark" richColors />
+          {children}
+          <Footer />
+        </Providers>
       </body>
     </html>
   );
-};
-
-export default ScaffoldEthApp;
+}
