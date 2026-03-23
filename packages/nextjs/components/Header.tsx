@@ -30,14 +30,11 @@ const WalletButton = () => {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Render a static placeholder during SSR — no wagmi hooks fire
-  if (!mounted) {
-    return (
-      <button className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-black">
-        Connect Wallet
-      </button>
-    );
-  }
+  if (!mounted) return (
+    <button className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-black">
+      Connect Wallet
+    </button>
+  );
 
   return (
     <ConnectButton.Custom>
