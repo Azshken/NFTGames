@@ -1,7 +1,7 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import "~~/styles/globals.css";
-import { Providers } from "~~/components/ProvidersClient";
-import { Header } from "~~/components/HeaderClient";
+import { Providers } from "~~/components/Providers";
+import { Header } from "~~/components/Header";
 import { Footer } from "~~/components/Footer";
 import { Toaster } from "sonner";
 
