@@ -51,20 +51,14 @@ Mint NFT (commitmentHash) → Claim Key (encrypt to wallet) → Soulbound ✓
 
 ```bash
 # 1. Install dependencies
-yarn install
+npm install
 
 # 2. Copy environment variables
 cp .env.example .env.local
 # Fill in: ENCRYPTION_KEY, DATABASE_URL, NEXT_PUBLIC_*
 
-# 3. Start local chain
-yarn chain
-
-# 4. Deploy contracts (new terminal)
-yarn deploy
-
-# 5. Start frontend (new terminal)
-yarn start
+# 3. Start frontend
+npm run dev
 ```
 Visit: http://localhost:3000
 Environment Variables
@@ -77,8 +71,6 @@ DATABASE_URL=          # Neon PostgreSQL connection string
 
 Testing
 ```
-yarn foundry:test
-# or
 forge test --match-path test/SoulKey.t.sol -vv
 ```
 License
