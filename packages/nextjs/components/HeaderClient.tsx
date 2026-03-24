@@ -1,10 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
 import { useBalance } from "wagmi";
-import { useEffect, useState } from "react";
 
 export const Header = () => {
   return (
@@ -28,13 +28,14 @@ export const Header = () => {
 
 const WalletButton = () => {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  if (!mounted) return (
-    <button className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-black">
-      Connect Wallet
-    </button>
-  );
+  if (!mounted)
+    return (
+      <button className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-black">Connect Wallet</button>
+    );
 
   return (
     <ConnectButton.Custom>
@@ -43,11 +44,17 @@ const WalletButton = () => {
         return (
           <div>
             {!connected ? (
-              <button onClick={openConnectModal} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-black transition-all duration-150">
+              <button
+                onClick={openConnectModal}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-black transition-all duration-150"
+              >
                 Connect Wallet
               </button>
             ) : chain.unsupported ? (
-              <button onClick={openChainModal} className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-all duration-150">
+              <button
+                onClick={openChainModal}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-500 text-white transition-all duration-150"
+              >
                 Wrong Network
               </button>
             ) : (
@@ -66,8 +73,13 @@ const WalletDisplay = ({ address, openAccountModal }: { address: string; openAcc
   const eth = balance ? parseFloat(formatEther(balance.value)).toFixed(4) : "—";
 
   return (
-    <button onClick={openAccountModal} className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 transition-all duration-150">
-      <span className="text-xs text-zinc-400 hidden sm:block">{eth} <span className="text-zinc-600">ETH</span></span>
+    <button
+      onClick={openAccountModal}
+      className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 transition-all duration-150"
+    >
+      <span className="text-xs text-zinc-400 hidden sm:block">
+        {eth} <span className="text-zinc-600">ETH</span>
+      </span>
       <span className="text-zinc-700 hidden sm:block">|</span>
       <span className="text-sm font-mono font-semibold text-zinc-200">{short}</span>
       <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />

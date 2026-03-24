@@ -1,9 +1,9 @@
 "use client";
+
 import { darkTheme, getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sepolia } from "viem/chains";
-import { cookieStorage, createStorage, WagmiProvider } from "wagmi";
-import { State } from "wagmi";
+import { cookieStorage, createStorage, State, WagmiProvider } from "wagmi";
 
 export const config = getDefaultConfig({
   appName: "SoulKey Store",
@@ -15,16 +15,11 @@ export const config = getDefaultConfig({
 
 const queryClient = new QueryClient();
 
-export function Providers({ children, initialState }: {
-  children: React.ReactNode;
-  initialState?: State;
- }) {
+export function Providers({ children, initialState }: { children: React.ReactNode; initialState?: State }) {
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({ accentColor: "#10b981" })}>
-          {children}
-        </RainbowKitProvider>
+        <RainbowKitProvider theme={darkTheme({ accentColor: "#10b981" })}>{children}</RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
