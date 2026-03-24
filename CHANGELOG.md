@@ -31,4 +31,11 @@
 
 - Deployed a new SoulKey contract.
 - Uploaded a new Pinata game image and metadata.
-- Removed all the scaffolding. Now I'm only using viem, rainbowkit and sonner/toast for error messages.
+- Removed the scaffold-eth 2 components, hooks and dependencies.
+- Changed the layout and the components to use viem, rainbowkit directly
+- Installed sonner/toast for error messages
+- Debugged the indexedDB error (wagmi SSR) and the yarn installing on Vercel.
+
+24/03/26
+
+- Finally fixed the indexedDB and the yarn install errors.

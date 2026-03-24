@@ -193,6 +193,10 @@ Refactoring the code:
   - Deployed a Deus Ex Soulkey with baseURI and metadata to test out multiple game deployments.
   - I've removed all the scaffolding and redesigned the Header and the Footer.
 
+  24/03/26
+
+  - This was a tough one. Fully removed the Scaffold-ETH 2 had problems with yarn installing on Vercel when using npm. 
+
 Notes:
 
 - This type of learning suits me the best (vibe coding). I have ideas in my head and no years of expertise. I can't learn for the sake of learning I hit a wall (because there is so much to know), get quickly demotivated and lose my goal by learning bloat that I may or may not use for my project ideas. With vibe coding I do, then fill up the gaps of knowledge by understanding how the pieces connect and how they work; step by step.

@@ -1,4 +1,5 @@
 "use client";
+
 import { darkTheme, getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sepolia } from "viem/chains";
@@ -17,9 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({ accentColor: "#10b981" })}>
-          {children}
-        </RainbowKitProvider>
+        <RainbowKitProvider theme={darkTheme({ accentColor: "#10b981" })}>{children}</RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
